@@ -80,42 +80,41 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
   }
 
   @override
-  Future<OccupancyEntity> createOccupancy({
-    required String roomId,
-    required String kosId,
-    required String tenantId,
-    required DateTime startDate,
-    DateTime? endDate,
-  }) async {
-    // Guard: pastikan kamar belum terisi
-    final existing = await fetchActiveOccupancyByRoom(
-      roomId: roomId,
-      kosId: kosId,
+Future<OccupancyEntity> createOccupancy({
+  required String roomId,
+  required String kosId,
+  required String tenantId,
+  DateTime? startDate,
+  DateTime? endDate,
+}) async {
+  final existing = await fetchActiveOccupancyByRoom(
+    roomId: roomId,
+    kosId: kosId,
+  );
+  if (existing != null) {
+    throw StateError(
+      'Kamar $roomId sudah berstatus occupied (occupancy id: ${existing.id}). '
+      'Selesaikan penghunian sebelumnya terlebih dahulu.',
     );
-    if (existing != null) {
-      throw StateError(
-        'Kamar $roomId sudah berstatus occupied (occupancy id: ${existing.id}). '
-        'Selesaikan penghunian sebelumnya terlebih dahulu.',
-      );
-    }
-
-    final payload = <String, dynamic>{
-      'room_id': roomId,
-      'kos_id': kosId,
-      'tenant_id': tenantId,
-      'status': 'occupied',
-      'start_date': startDate.toIso8601String(),
-      if (endDate != null) 'end_date': endDate.toIso8601String(),
-    };
-
-    final res = await _client
-        .from('occupancies')
-        .insert(payload)
-        .select('id, room_id, kos_id, status, tenant_id, start_date, end_date, created_at')
-        .single();
-
-    return _mapToEntity(res as Map<String, dynamic>);
   }
+
+  final payload = <String, dynamic>{
+    'room_id': roomId,
+    'kos_id': kosId,
+    'tenant_id': tenantId,
+    'status': 'occupied',
+    'start_date': (startDate ?? DateTime.now()).toIso8601String(),
+    if (endDate != null) 'end_date': endDate.toIso8601String(),
+  };
+
+  final res = await _client
+      .from('occupancies')
+      .insert(payload)
+      .select('id, room_id, kos_id, status, tenant_id, start_date, end_date, created_at')
+      .single();
+
+  return _mapToEntity(res as Map<String, dynamic>);
+}
 
   @override
   Future<void> updateOccupancyStatus({
@@ -189,27 +188,8 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
       );
     }
   }
-  @
-Future<void> createOccupancy({
-  required String tenantId,
-  required String roomId,
-  required String kosId,
-  DateTime? startDate,
-  DateTime? endDate,
-  String status = 'occupied',
-}) async {
-  final data = <String, dynamic>{
-    'tenant_id': tenantId,
-    'room_id': roomId,
-    'status': status,
-    'kos_id': kosId,
-  };
+  
 
-  if (startDate != null) data['start_date'] = startDate.toIso8601String();
-  if (endDate != null) data['end_date'] = endDate.toIso8601String();
-
-  await _client.from('occupancies').insert(data);
-}
 Future<bool> checkoutByTenantId({
   required String tenantId,
   DateTime? endDate,
