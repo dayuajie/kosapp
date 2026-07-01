@@ -145,6 +145,7 @@ class _TenantsPageState extends State<TenantsPage> {
                           if (!mounted) return;
                           Navigator.of(ctx2).pop();
                           await _loadTenants();
+                          TenantRefreshNotifier.instance.notifyTenantsChanged();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('"${t.fullName}" berhasil checkout')),
@@ -639,6 +640,7 @@ class _TenantCard extends StatelessWidget {
   });
 
   bool get _hasProfilePhoto => (tenant.tenantsUrl ?? '').trim().isNotEmpty;
+  bool get _isCheckedOut => tenant.checkOutDate != null;
 
   Color get _avatarColor {
     const colors = [
@@ -718,34 +720,40 @@ class _TenantCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _avatarColor.withOpacity(0.08),
+                        color: _isCheckedOut
+                            ? Colors.grey.shade100
+                            : _avatarColor.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        tenant.room ?? '-',
+                        _isCheckedOut ? 'Checkout' : (tenant.room ?? '-'),
                         style: TextStyle(
-                          color: _avatarColor,
+                          color: _isCheckedOut ? Colors.grey.shade500 : _avatarColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
                       ),
                     ),
                     const SizedBox(height: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _isLate ? 'Belum bayar' : 'Lunas',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _isCheckedOut
+                                ? Colors.grey.shade100
+                                : (_isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7)),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _isCheckedOut ? 'Non-aktif' : (_isLate ? 'Belum bayar' : 'Lunas'),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: _isCheckedOut
+                                  ? Colors.grey.shade500
+                                  : (_isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
                   ],
                 ),
               ],
@@ -996,46 +1004,63 @@ class _TenantDetailSheet extends StatelessWidget {
   }
 
   Widget _buildIdentityHeader() {
-    return Column(
-      children: [
-        Text(
-          tenant.fullName,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: _slateLight,
-          ),
+  final isCheckedOut = tenant.checkOutDate != null;
+  return Column(
+    children: [
+      Text(
+        tenant.fullName,
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: _slateLight,
         ),
-        const SizedBox(height: 2),
-        Text(
-          tenant.room ?? '-',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey.shade500,
-            fontWeight: FontWeight.w500,
-          ),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        isCheckedOut ? 'Sudah checkout' : (tenant.room ?? '-'),
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.grey.shade500,
+          fontWeight: FontWeight.w500,
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _buildStatusBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: _isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Text(
-        _isLate ? 'Belum bayar bulan ini' : 'Pembayaran lunas',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: _isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A),
-        ),
-      ),
-    );
+  final isCheckedOut = tenant.checkOutDate != null;
+
+  final String label;
+  final Color bg;
+  final Color fg;
+
+  if (isCheckedOut) {
+    label = 'Sudah checkout';
+    bg = Colors.grey.shade200;
+    fg = Colors.grey.shade600;
+  } else if (_isLate) {
+    label = 'Belum bayar bulan ini';
+    bg = const Color(0xFFFEF3C7);
+    fg = const Color(0xFFD97706);
+  } else {
+    label = 'Pembayaran lunas';
+    bg = const Color(0xFFDCFCE7);
+    fg = const Color(0xFF16A34A);
   }
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(100),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+    ),
+  );
+}
 
   Widget _customExpansionTile({
     required String title,
@@ -1294,133 +1319,165 @@ class _TenantDetailSheet extends StatelessWidget {
   }
 
   Widget _buildRoomInfoSection(BuildContext context) {
-    return _customExpansionTile(
-      title: 'Room information',
-      subtitle: 'Data kamar & masa sewa',
-      children: [
-        if (_hasRoom)
-          Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoTile(
-                      icon: Icons.bed_rounded,
-                      label: 'Room name',
-                      value: tenant.room ?? '-',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _InfoTile(
-                      icon: Icons.access_time_rounded,
-                      label: 'Lama tinggal',
-                      value: tenant.moveInDate == null ? '-' : _formatDuration(tenant.moveInDate!, tenant.checkOutDate),
-                    ),
-                  ),
-                ],
+  final isCheckedOut = tenant.checkOutDate != null;
+
+  return _customExpansionTile(
+    title: 'Room information',
+    subtitle: isCheckedOut ? 'Riwayat kamar' : 'Data kamar & masa sewa',
+    children: [
+      if (isCheckedOut)
+        _buildCheckedOutRoomInfo()
+      else if (_hasRoom)
+        _buildActiveRoomInfo(context)
+      else
+        _buildEmptyState('Tenant belum ditempatkan di kamar manapun.'),
+    ],
+  );
+}
+
+Widget _buildCheckedOutRoomInfo() {
+  return Row(
+    children: [
+      Expanded(
+        child: _InfoTile(
+          icon: Icons.bed_rounded,
+          label: 'Room name',
+          value: tenant.room ?? '-',
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: _InfoTile(
+          icon: Icons.event_busy_rounded,
+          label: 'Checkout date',
+          value: DateFormat('dd MMM yyyy', 'id_ID').format(tenant.checkOutDate!),
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildActiveRoomInfo(BuildContext context) {
+  return Column(
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.bed_rounded,
+              label: 'Room name',
+              value: tenant.room ?? '-',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.calendar_today_rounded,
+              label: 'Tanggal masuk',
+              value: tenant.moveInDate == null
+                  ? '-'
+                  : DateFormat('dd MMM yyyy', 'id_ID').format(tenant.moveInDate!),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.event_rounded,
+              label: 'Referensi tanggal keluar',
+              value: tenant.endDate == null
+                  ? '-'
+                  : DateFormat('dd MMM yyyy', 'id_ID').format(tenant.endDate!),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.access_time_rounded,
+              label: 'Lama tinggal',
+              value: tenant.moveInDate == null
+                  ? '-'
+                  : _formatDuration(tenant.moveInDate!, null),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.payments_outlined,
+              label: 'Harga sewa',
+              value: tenant.rentPrice == null ? '-' : 'Rp ${tenant.rentPrice}',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _InfoTile(
+              icon: Icons.repeat_rounded,
+              label: 'Tipe sewa',
+              value: tenant.rentType ?? '-',
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: onCheckout,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                side: const BorderSide(color: _dangerColor),
+                foregroundColor: _dangerColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoTile(
-                      icon: Icons.payments_outlined,
-                      label: 'Harga sewa',
-                      value: tenant.rentPrice == null ? '-' : 'Rp ${tenant.rentPrice}',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _InfoTile(
-                      icon: Icons.logout_rounded,
-                      label: 'Check out',
-                      value: tenant.checkOutDate == null ? '-' : DateFormat('dd MMM yyyy', 'id_ID').format(tenant.checkOutDate!),
-                    ),
-                  ),
-                ],
+              child: const Text('Checkout',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: _dangerColor)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Fitur switch room belum tersedia')),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                side: const BorderSide(color: Colors.blue),
+                foregroundColor: Colors.blue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: onCheckout,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                        side: const BorderSide(color: _dangerColor),
-                        foregroundColor: _dangerColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        'Checkout',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: _dangerColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Fitur switch room belum tersedia')),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                        side: const BorderSide(color: Colors.blue),
-                        foregroundColor: Colors.blue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        'Switch Room',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                        side: BorderSide(color: _primaryColor.withOpacity(0.9)),
-                        foregroundColor: _primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        'Perpanjang',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: _primaryColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              child: const Text('Switch Room',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.blue)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                side: BorderSide(color: _primaryColor.withOpacity(0.9)),
+                foregroundColor: _primaryColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-            ],
-          )
-        else
-          _buildEmptyState('Tenant belum ditempatkan di kamar manapun.'),
-      ],
-    );
-  }
+              child: const Text('Perpanjang',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: _primaryColor)),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   Widget _buildPaymentHistorySection() {
     return _customExpansionTile(

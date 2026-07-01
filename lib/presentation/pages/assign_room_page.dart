@@ -38,10 +38,8 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   final _priceCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   String _paymentMethod = 'Transfer Bank';
-
-  // State untuk Tipe Sewa dan Status Pembayaran
-  String _rentType = 'Bulanan'; // Default
-  String _paymentStatus = 'Lunas'; // Default
+  String _rentType = 'Bulanan'; 
+  String _paymentStatus = 'Lunas';
 
   final List<String> _paymentMethods = [
     'Transfer Bank',
@@ -60,6 +58,12 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
     _calculateCheckoutByRentType();
     if (widget.tenantId != null) _selectedTenantId = widget.tenantId;
     _initData();
+    TenantRefreshNotifier.instance.addListener(_onDataChanged);
+  }
+  void _onDataChanged() {
+    if (!mounted) return;
+    _loadRooms();
+    _loadTenants();
   }
 
   Future<void> _initData() async {
@@ -161,6 +165,7 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   if (_selectedTenantId == null) return _showSnackBar('Silakan pilih penghuni', isError: true);
   if (_selectedRoomId == null) return _showSnackBar('Silakan pilih kamar', isError: true);
   if (_priceCtrl.text.trim().isEmpty) return _showSnackBar('Harga sewa tidak boleh kosong', isError: true);
+  if (_startDate == null) return _showSnackBar('Tanggal masuk belum dipilih', isError: true);
 
   final kosId = _currentKosId;
   if (kosId == null || kosId.isEmpty) {
@@ -178,12 +183,18 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
     }
 
     await _occupancyRepo.createOccupancy(
-      tenantId: _selectedTenantId!,
-      roomId: _selectedRoomId!,
-      startDate: _startDate,
-      endDate: _endDate,
-      kosId: kosId,
-    );
+          tenantId: _selectedTenantId!,
+          roomId: _selectedRoomId!,
+          startDate: _startDate!,
+          endDate: _endDate,
+          kosId: kosId,
+          price: _priceCtrl.text.trim(),
+          rentType: _rentType,
+          paymentStatus: _paymentStatus,
+          paymentMethod: _paymentMethod,
+          paidAmount: _paymentStatus == 'Lunas' ? _priceCtrl.text.trim() : null,
+          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        );
 
     if (!mounted) return;
     _showSnackBar('Penghuni berhasil ditempatkan!');
@@ -225,6 +236,7 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
 
   @override
   void dispose() {
+    TenantRefreshNotifier.instance.removeListener(_onDataChanged);
     _priceCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
