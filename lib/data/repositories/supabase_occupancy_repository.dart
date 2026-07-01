@@ -84,9 +84,16 @@ Future<OccupancyEntity> createOccupancy({
   required String roomId,
   required String kosId,
   required String tenantId,
-  DateTime? startDate,
+  required DateTime startDate,
   DateTime? endDate,
+  String? price,
+  String? rentType,
+  String? paymentStatus,
+  String? paymentMethod,
+  String? paidAmount,
+  String? notes,
 }) async {
+  // Guard: pastikan kamar belum terisi
   final existing = await fetchActiveOccupancyByRoom(
     roomId: roomId,
     kosId: kosId,
@@ -103,8 +110,14 @@ Future<OccupancyEntity> createOccupancy({
     'kos_id': kosId,
     'tenant_id': tenantId,
     'status': 'occupied',
-    'start_date': (startDate ?? DateTime.now()).toIso8601String(),
+    'start_date': startDate.toIso8601String(),
     if (endDate != null) 'end_date': endDate.toIso8601String(),
+    if (price != null) 'price': price,
+    if (rentType != null) 'rent_type': rentType,
+    if (paymentStatus != null) 'payment_status': paymentStatus,
+    if (paymentMethod != null) 'payment_method': paymentMethod,
+    if (paidAmount != null) 'paid_amount': paidAmount,
+    if (notes != null) 'notes': notes,
   };
 
   final res = await _client
