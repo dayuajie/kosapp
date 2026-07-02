@@ -53,6 +53,15 @@ class _TenantsPageState extends State<TenantsPage> {
   }
 
   int get _lateCount => _tenants.where((t) => t.paymentStatus == 'belum_bayar').length;
+  int get _totalTenantCount => _tenants.length;
+  int get _activeTenantCount => _tenants
+    .where((t) => t.checkOutDate == null && (t.room ?? '').trim().isNotEmpty)
+    .length;
+  int get _checkedOutTenantCount =>
+    _tenants.where((t) => t.checkOutDate != null).length;
+  int get _unassignedTenantCount => _tenants
+    .where((t) => t.checkOutDate == null && (t.room ?? '').trim().isEmpty)
+    .length;
 
   Future<void> _loadTenants() async {
     if (!mounted) return;
@@ -435,26 +444,26 @@ class _TenantsPageState extends State<TenantsPage> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                   child: Row(
-                    children: [
-                      _StatCard(
-                        label: 'Total kamar',
-                        value: '12',
-                        dotColor: const Color(0xFF6D5EF6),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatCard(
-                        label: 'Terisi',
-                        value: '${_tenants.length}',
-                        dotColor: const Color(0xFF16A34A),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatCard(
-                        label: 'Tempo',
-                        value: '$_lateCount',
-                        dotColor: const Color(0xFFF59E0B),
-                      ),
-                    ],
+                children: [
+                  _StatCard(
+                    label: 'Total Penghuni',
+                    value: '$_totalTenantCount',
+                    dotColor: const Color(0xFF6D5EF6),
                   ),
+                  const SizedBox(width: 8),
+                  _StatCard(
+                    label: 'Aktif',
+                    value: '$_activeTenantCount',
+                   dotColor: const Color(0xFF16A34A),
+                  ),
+                  const SizedBox(width: 8),
+                  _StatCard(
+                    label: 'Checkout',
+                    value: '$_checkedOutTenantCount',
+                    dotColor: const Color(0xFFF59E0B),
+                  ),
+                ],
+              ),
                 ),
               ),
               const SliverToBoxAdapter(
@@ -649,6 +658,28 @@ class _TenantCard extends StatelessWidget {
     return colors[tenant.fullName.length % colors.length];
   }
 
+  String get _startDateLabel {
+  final d = tenant.moveInDate;
+  if (d == null) return '-';
+  return DateFormat('dd MMM yyyy', 'id_ID').format(d);
+}
+
+String get _durationLabel {
+  final start = tenant.moveInDate;
+  if (start == null) return '-';
+  final end = tenant.checkOutDate ?? DateTime.now();
+  final months = (end.year - start.year) * 12 + (end.month - start.month);
+  if (months <= 0) return '< 1 bulan';
+  return '$months bulan';
+}
+
+String get _priceLabel {
+  final price = tenant.rentPrice;
+  if (price == null) return '-';
+  final fmt = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  return fmt.format(price);
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -769,34 +800,34 @@ Container(
             ),
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.only(top: 10),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: Color(0xFFF1F5F9),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  _FooterMeta(
-                    icon: Icons.calendar_today_rounded,
-                    value: 'occupancy.start_date',
-                  ),
-                  SizedBox(width: 14),
-                  _FooterMeta(
-                    icon: Icons.access_time_rounded,
-                    value: 'occupancy.duration',
-                  ),
-                  Spacer(),
-                  _FooterMeta(
-                    icon: Icons.payments_outlined,
-                    value: 'occupancy.price',
-                  ),
-                ],
-              ),
-            ),
+  padding: const EdgeInsets.only(top: 10),
+  decoration: const BoxDecoration(
+    border: Border(
+      top: BorderSide(
+        color: Color(0xFFF1F5F9),
+        width: 1,
+      ),
+    ),
+  ),
+  child: Row(
+    children: [
+      _FooterMeta(
+        icon: Icons.calendar_today_rounded,
+        value: _startDateLabel,
+      ),
+      const SizedBox(width: 14),
+      _FooterMeta(
+        icon: Icons.access_time_rounded,
+        value: _durationLabel,
+      ),
+      const Spacer(),
+      _FooterMeta(
+        icon: Icons.payments_outlined,
+        value: _priceLabel,
+      ),
+    ],
+  ),
+),
           ],
         ),
       ),
