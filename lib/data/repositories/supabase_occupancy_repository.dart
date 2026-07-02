@@ -8,9 +8,7 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
   SupabaseOccupancyRepository({SupabaseClient? client})
       : _client = client ?? Supabase.instance.client;
 
-  // ===========================================================================
-  // REGION: READ
-  // ===========================================================================
+
 
   @override
   Future<List<OccupancyEntity>> fetchOccupiedOccupancies({
@@ -80,7 +78,7 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
   }
 
   @override
-Future<OccupancyEntity> createOccupancy({
+  Future<OccupancyEntity> createOccupancy({
   required String roomId,
   required String kosId,
   required String tenantId,
@@ -168,11 +166,6 @@ Future<OccupancyEntity> createOccupancy({
         .eq('id', occupancyId);
   }
 
-  // ===========================================================================
-  // REGION: PRIVATE HELPERS
-  // ===========================================================================
-
-  /// Mapping dari raw Supabase row ke [OccupancyEntity].
   OccupancyEntity _mapToEntity(Map<String, dynamic> r) {
     return OccupancyEntity(
       id: r['id'].toString(),

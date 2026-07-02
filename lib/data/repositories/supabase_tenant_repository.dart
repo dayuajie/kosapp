@@ -33,37 +33,39 @@ class SupabaseTenantRepository {
   /// Mengambil data satu profil penghuni berdasarkan ID.
   /// Termasuk join occupancies -> rooms untuk data kamar aktif.
   Future<TenantEntity?> fetchTenantById(String tenantId) async {
-    final Map<String, dynamic>? rawTenant = await _client
-        .from('tenants')
-        .select(
-          'id, full_name, phone, address, id_card_number, idcard_url, tenants_url, '
-          'emergency_name, emergency_phone,check_out, '
-          'occupancies!left(room_id, start_date, end_date, status, '
-          'rooms(name))',
-        )
-        .eq('id', tenantId)
-        .maybeSingle();
+  final Map<String, dynamic>? rawTenant = await _client
+      .from('tenants')
+      .select(
+        'id, full_name, phone, address, id_card_number, idcard_url, tenants_url, '
+        'emergency_name, emergency_phone,check_out, '
+        'occupancies!left(room_id, start_date, end_date, status, price, rent_type, '
+        'rooms!room_id(name))',
+      )
+      .eq('id', tenantId)
+      .maybeSingle();
 
     if (rawTenant == null) return null;
 
     return await _mapToTenantEntity(_flattenOccupancy(rawTenant));
   }
 
-  /// Mengambil seluruh daftar penghuni kos yang terdaftar berdasarkan kos aktif.
-  /// Join ke occupancies → rooms untuk mendapatkan data kamar, tanggal masuk,
-  /// harga sewa, dan status pembayaran.
   Future<List<TenantEntity>> fetchTenants() async {
-    final activeKosId = _requireCurrentKosId();
-    final List<Map<String, dynamic>> rows = await _client
-        .from('tenants')
-        .select(
-          'id, full_name, phone, address, id_card_number, tenants_url, idcard_url, '
-          'emergency_name, emergency_phone, created_at, kos_id, check_out, '
-          'occupancies!left(room_id, start_date, end_date, status, '
-          'rooms(name))',
-        )
-        .eq('kos_id', activeKosId)
-        .order('full_name');
+  final activeKosId = _requireCurrentKosId();
+  final List<Map<String, dynamic>> rows = await _client
+      .from('tenants')
+      .select(
+        'id, full_name, phone, address, id_card_number, tenants_url, idcard_url, '
+        'emergency_name, emergency_phone, created_at, kos_id, check_out, '
+        'occupancies!left(room_id, start_date, end_date, status, price, rent_type, '
+        'rooms!room_id(name))',
+      )
+      .eq('kos_id', activeKosId)
+      .order('full_name');
+
+      for (final r in rows) {
+      // ignore: avoid_print
+      print('[TenantRepo] ${r['full_name']} -> occupancies=${r['occupancies']}');
+    }
 
     final signedTenants = await Future.wait(
       rows.map((r) => _mapToTenantEntity(_flattenOccupancy(r))),
@@ -95,46 +97,45 @@ class SupabaseTenantRepository {
 }
 
   Map<String, dynamic> _flattenOccupancy(Map<String, dynamic> raw) {
-    final result = Map<String, dynamic>.from(raw);
-    final occupanciesRaw = raw['occupancies'];
-    Map<String, dynamic>? occ;
+  final result = Map<String, dynamic>.from(raw);
+  final occupanciesRaw = raw['occupancies'];
+  Map<String, dynamic>? occ;
 
-    if (occupanciesRaw is List && occupanciesRaw.isNotEmpty) {
-      final list = occupanciesRaw.cast<Map<String, dynamic>>();
-      final activeOnes = list.where((o) => (o['status'] ?? '') == 'occupied');
-      if (activeOnes.isNotEmpty) {
-        occ = activeOnes.first;
-      } else {
-        final sorted = [...list]
-          ..sort((a, b) {
-            final da = DateTime.tryParse((a['start_date'] ?? '').toString());
-            final db = DateTime.tryParse((b['start_date'] ?? '').toString());
-            if (da == null || db == null) return 0;
-            return db.compareTo(da);
-          });
-        occ = sorted.first;
-      }
-    } else if (occupanciesRaw is Map) {
-      occ = occupanciesRaw.cast<String, dynamic>();
+  if (occupanciesRaw is List && occupanciesRaw.isNotEmpty) {
+    final list = occupanciesRaw.cast<Map<String, dynamic>>();
+    final activeOnes = list.where((o) => (o['status'] ?? '') == 'occupied');
+    if (activeOnes.isNotEmpty) {
+      occ = activeOnes.first;
+    } else {
+      final sorted = [...list]
+        ..sort((a, b) {
+          final da = DateTime.tryParse((a['start_date'] ?? '').toString());
+          final db = DateTime.tryParse((b['start_date'] ?? '').toString());
+          if (da == null || db == null) return 0;
+          return db.compareTo(da);
+        });
+      occ = sorted.first;
     }
-
-    if (occ != null) {
-      result['start_date'] = occ['start_date'];
-      result['end_date'] = occ['end_date'];
-      result['payment_status'] = occ['status'];
-
-      if ((occ['status'] ?? '') == 'occupied') {
-        final roomRaw = occ['rooms'];
-        if (roomRaw is Map) {
-          final room = roomRaw.cast<String, dynamic>();
-          result['room_name'] = room['name'];
-          result['rent_price'] = room['price'];
-        }
-      }
-    }
-
-    return result;
+  } else if (occupanciesRaw is Map) {
+    occ = occupanciesRaw.cast<String, dynamic>();
   }
+
+  if (occ != null) {
+    result['start_date'] = occ['start_date'];
+    result['end_date'] = occ['end_date'];
+    result['payment_status'] = occ['status'];
+    result['rent_price'] = occ['price'];
+    result['rent_type'] = occ['rent_type'];
+
+    final roomRaw = occ['rooms'];
+    if (roomRaw is Map) {
+      final room = roomRaw.cast<String, dynamic>();
+      result['room_name'] = room['name'];
+    }
+  }
+
+  return result;
+}
 
   /// Membuat data penghuni baru sekaligus mendaftarkannya ke dalam kamar tertentu.
   Future<void> createTenantAndOccupancy({
@@ -313,66 +314,81 @@ class SupabaseTenantRepository {
   // ===========================================================================
 
   Future<TenantEntity> _mapToTenantEntity(Map<String, dynamic> r) async {
-    final signedTenantsUrl = await _toSignedUrlIfNeeded(
-      r['tenants_url']?.toString(),
-      bucketName: B2Config.bucketTenantPhoto,
-    );
+  final signedTenantsUrl = await _toSignedUrlIfNeeded(
+    r['tenants_url']?.toString(),
+    bucketName: B2Config.bucketTenantPhoto,
+  );
 
-    final signedIdCardUrl = await _toSignedUrlIfNeeded(
-      r['idcard_url']?.toString(),
-      bucketName: B2Config.bucketIdCardPhoto,
-    );
+  final signedIdCardUrl = await _toSignedUrlIfNeeded(
+    r['idcard_url']?.toString(),
+    bucketName: B2Config.bucketIdCardPhoto,
+  );
 
-    final emergencyContact = (() {
-      final name = (r['emergency_name'] ?? '').toString().trim();
-      final phone = (r['emergency_phone'] ?? '').toString().trim();
-      if (name.isEmpty && phone.isEmpty) return null;
-      if (name.isEmpty) return phone;
-      if (phone.isEmpty) return name;
-      return '$name/$phone';
-    })();
+  final emergencyContact = (() {
+    final name = (r['emergency_name'] ?? '').toString().trim();
+    final phone = (r['emergency_phone'] ?? '').toString().trim();
+    if (name.isEmpty && phone.isEmpty) return null;
+    if (name.isEmpty) return phone;
+    if (phone.isEmpty) return name;
+    return '$name/$phone';
+  })();
 
-    final room = r['room'] ?? r['room_name'] ?? r['room_id'];
-    final moveIn = r['move_in_date'] ?? r['start_date'];
-    final rentPrice = r['rent_price'] ?? r['price'] ?? r['monthly_price'];
-    final paymentStatus = r['payment_status'] ?? r['status'];
-    final checkOut = r['end_date'];
+  final room = r['room'] ?? r['room_name'] ?? r['room_id'];
+final moveIn = r['move_in_date'] ?? r['start_date'];
+final rentPrice = r['rent_price'] ?? r['price'] ?? r['monthly_price'];
+final paymentStatus = r['payment_status'] ?? r['status'];
+final plannedEnd = r['end_date'];      // tanggal rencana keluar sewa (dari occupancy)
+final actualCheckOut = r['check_out']; // checkout aktual (dari tenants.check_out)
 
-    DateTime? parsedMoveIn;
-    if (moveIn is String) {
-      parsedMoveIn = DateTime.tryParse(moveIn);
-    } else if (moveIn is DateTime) {
-      parsedMoveIn = moveIn;
-    }
+DateTime? parsedMoveIn;
+if (moveIn is String) {
+  parsedMoveIn = DateTime.tryParse(moveIn);
+} else if (moveIn is DateTime) {
+  parsedMoveIn = moveIn;
+}
 
-    DateTime? parsedCheckOut;
-    if (checkOut is String) {
-      parsedCheckOut = DateTime.tryParse(checkOut);
-    } else if (checkOut is DateTime) {
-      parsedCheckOut = checkOut;
-    }
+DateTime? parsedEndDate;
+if (plannedEnd is String) {
+  parsedEndDate = DateTime.tryParse(plannedEnd);
+} else if (plannedEnd is DateTime) {
+  parsedEndDate = plannedEnd;
+}
 
-    int? parsedRentPrice;
-    if (rentPrice != null) {
-      parsedRentPrice = int.tryParse(rentPrice.toString());
-    }
+DateTime? parsedCheckOut;
+if (actualCheckOut is String) {
+  parsedCheckOut = DateTime.tryParse(actualCheckOut);
+} else if (actualCheckOut is DateTime) {
+  parsedCheckOut = actualCheckOut;
+}
 
-    return TenantEntity(
-      id: r['id'].toString(),
-      fullName: (r['full_name'] ?? '').toString(),
-      phone: r['phone']?.toString(),
-      room: room?.toString(),
-      moveInDate: parsedMoveIn,
-      checkOutDate: parsedCheckOut,
-      rentPrice: parsedRentPrice,
-      paymentStatus: paymentStatus?.toString(),
-      emergencyContact: emergencyContact,
-      address: r['address']?.toString(),
-      idCardNumber: r['id_card_number']?.toString(),
-      tenantsUrl: signedTenantsUrl,
-      idCardUrl: signedIdCardUrl,
-    );
-  }
+int? parsedRentPrice;
+if (rentPrice != null) {
+  parsedRentPrice = int.tryParse(rentPrice.toString());
+}
+
+return TenantEntity(
+  id: r['id'].toString(),
+  fullName: (r['full_name'] ?? '').toString(),
+  phone: r['phone']?.toString(),
+  room: room?.toString(),
+  moveInDate: parsedMoveIn,
+  endDate: parsedEndDate,        // <-- tambahkan ini
+  checkOutDate: parsedCheckOut,  // <-- sekarang benar dari tenants.check_out
+  rentPrice: parsedRentPrice,
+  paymentStatus: paymentStatus?.toString(),
+  emergencyContact: emergencyContact,
+  address: r['address']?.toString(),
+  idCardNumber: r['id_card_number']?.toString(),
+  tenantsUrl: signedTenantsUrl,
+  idCardUrl: signedIdCardUrl,
+);
+}
+
+DateTime? _parseDynamicDate(dynamic v) {
+  if (v == null) return null;
+  if (v is DateTime) return v;
+  return DateTime.tryParse(v.toString());
+}
 
   Future<String?> _toSignedUrlIfNeeded(
     String? storedUrlOrPath, {
