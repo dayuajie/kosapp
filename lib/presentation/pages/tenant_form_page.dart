@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kos_app/data/repositories/supabase_kos_repository.dart';
 import 'package:kos_app/data/repositories/supabase_tenant_repository.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'assign_room_page.dart';
 
 class TenantFormPage extends StatefulWidget {
   final String? tenantId;
@@ -258,29 +259,137 @@ class _TenantFormPageState extends State<TenantFormPage> {
     String? idCardUrl;
 
     if (_profilePhoto != null) {
-      photoUrl = await _tenantRepo.uploadTenantPhoto(
-        tenantId: tenantId,
-        file: _profilePhoto!,
-      );
+      photoUrl = await _tenantRepo.uploadTenantPhoto(tenantId: tenantId, file: _profilePhoto!);
     }
-
     if (_idCardPhoto != null) {
-      idCardUrl = await _tenantRepo.uploadIdCardPhoto(
-        tenantId: tenantId,
-        file: _idCardPhoto!,
-      );
+      idCardUrl = await _tenantRepo.uploadIdCardPhoto(tenantId: tenantId, file: _idCardPhoto!);
     }
 
-    await _tenantRepo.updateTenantPhotos(
-      tenantId: tenantId,
-      tenantsUrl: photoUrl,
-      idCardUrl: idCardUrl,
-    );
+    await _tenantRepo.updateTenantPhotos(tenantId: tenantId, tenantsUrl: photoUrl, idCardUrl: idCardUrl);
 
     if (!mounted) return;
     _showSnack('Penghuni "$name" berhasil didaftarkan');
+
+    // Tanya apakah langsung mau assign kamar
+    final assignNow = await showDialog<bool>(
+  context: context,
+  barrierDismissible: false, // Menghindari dialog tertutup tidak sengaja jika diklik luarnya
+  builder: (ctx) => Dialog(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    elevation: 0,
+    backgroundColor: Colors.transparent,
+    child: Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.rectangle,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 20.0,
+            offset: Offset(0.0, 10.0),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // Agar tinggi dialog menyesuaikan konten
+        children: [
+          // 1. Bagian Ikon/Visual di Atas
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6D5EF6).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_outline_rounded,
+              size: 54,
+              color: Color(0xFF6D5EF6),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 2. Judul
+          const Text(
+            'Berhasil Didaftarkan!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 3. Deskripsi / Pertanyaan
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
+              children: [
+                const TextSpan(text: 'Penghuni '),
+                TextSpan(
+                  text: '"$name" ',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                const TextSpan(text: 'sudah terdata.\nApakah Anda ingin langsung menempatkannya ke kamar?'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // 4. Tombol Aksi (Dibuat vertikal agar lebih leluasa dan modern)
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6D5EF6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text(
+                'Ya, Tempatkan Kamar',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text(
+                'Nanti Saja',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
+
+    if (!mounted) return;
+
+    if (assignNow == true) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => AssignRoomPage(tenantId: tenantId)),
+      );
+    }
+
+    if (!mounted) return;
     Navigator.of(context).pop(true);
-  }
+}
 
   // ── HELPERS ────────────────────────────────────────────────────────────────
   String? _valueOrNull(TextEditingController ctrl) {

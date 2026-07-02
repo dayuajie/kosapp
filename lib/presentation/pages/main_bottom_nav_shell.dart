@@ -6,11 +6,10 @@ import '../navigation/app_bottom_navigation.dart';
 import '../navigation/bottom_nav_item.dart';
 import 'dashboard_page.dart';
 import 'payments_page.dart';
-import 'rooms_page.dart';
 import 'tenants_page.dart';
 import 'settings_page.dart';
 import 'tenant_form_page.dart';
-import 'finance/user_finance/finance_page.dart';
+
 
 class MainBottomNavShell extends StatefulWidget {
   const MainBottomNavShell({super.key});
@@ -21,6 +20,7 @@ class MainBottomNavShell extends StatefulWidget {
 
 class _MainBottomNavShellState extends State<MainBottomNavShell> {
   int currentIndex = 0;
+  final _tenantsKey = GlobalKey<State>();
   StreamSubscription<AuthState>? _authSubscription; 
 
   @override
@@ -49,41 +49,39 @@ class _MainBottomNavShellState extends State<MainBottomNavShell> {
   @override
   Widget build(BuildContext context) {
     final currentKosId = _activeKosId();
-
-    
     final List<BottomNavItem> items = [
-      BottomNavItem(
-        id: 'dashboard',
-        icon: Icons.dashboard_outlined,
-        label: 'Dashboard',
-        page: const DashboardPage(), 
-      ),
-      BottomNavItem(
-        id: 'tenant',
-        icon: Icons.people_alt_rounded,
-        label: 'Penghuni',
-        page: TenantsPage(), 
-      ),
-      
-      BottomNavItem(
-        id: 'payments',
-        icon: Icons.receipt_long_outlined,
-        label: 'Pembayaran',
-        page: const PaymentsPage(),
-      ),
-      BottomNavItem(
-        id: 'assign',
-        icon: Icons.bed_outlined,
-        label: 'Tempatkan',
-        page: const AssignRoomPage(),
-      ),
-      BottomNavItem(
-        id: 'settings',
-        icon: Icons.settings_outlined,
-        label: 'Pengaturan',
-        page: const SettingsPage(),
-      ),
-    ];
+  BottomNavItem(
+    id: 'dashboard',
+    icon: Icons.dashboard_outlined,
+    label: 'Dashboard',
+    page: const DashboardPage(), 
+  ),
+  BottomNavItem(
+    id: 'tenant',
+    icon: Icons.people_alt_rounded,
+    label: 'Penghuni',
+    // Pindahkan key ke sini agar fungsi refresh di onTap bisa memanggilnya
+    page: TenantsPage(key: _tenantsKey), 
+  ),
+  BottomNavItem(
+    id: 'payments',
+    icon: Icons.receipt_long_outlined,
+    label: 'Pembayaran',
+    page: const PaymentsPage(),
+  ),
+  BottomNavItem(
+    id: 'assign',
+    icon: Icons.bed_outlined,
+    label: 'Tempatkan',
+    page: const AssignRoomPage(),
+  ),
+  BottomNavItem(
+    id: 'settings',
+    icon: Icons.settings_outlined,
+    label: 'Pengaturan',
+    page: const SettingsPage(),
+  ),
+];
 
     return Scaffold(
       body: IndexedStack(
@@ -101,6 +99,9 @@ class _MainBottomNavShellState extends State<MainBottomNavShell> {
                   currentIndex: currentIndex,
                   onTap: (i) {
                     setState(() => currentIndex = i);
+                    if (i == 1) {
+                      (_tenantsKey.currentState as dynamic)?.refreshTenants();
+                    }
                   },
                   items: items,
                 ),

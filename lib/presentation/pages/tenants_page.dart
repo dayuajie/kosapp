@@ -1,16 +1,11 @@
-// tenants_page.dart
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:kos_app/data/repositories/supabase_kos_repository.dart';
 import 'package:kos_app/data/repositories/supabase_tenant_repository.dart';
 import '../../domain/entities/tenant_entity.dart';
 import '../../core/tenant_refresh_notifier.dart';
 import 'tenant_form_page.dart';
 
-// ============================================================================
-// MAIN PAGE
-// ============================================================================
 
 class TenantsPage extends StatefulWidget {
   const TenantsPage({super.key});
@@ -20,7 +15,7 @@ class TenantsPage extends StatefulWidget {
 }
 
 class _TenantsPageState extends State<TenantsPage> {
-  final _repo = SupabaseKosRepository();
+
   final _tenantRepo = SupabaseTenantRepository();
   final _searchCtrl = TextEditingController();
 
@@ -77,6 +72,7 @@ class _TenantsPageState extends State<TenantsPage> {
       setState(() => _isLoading = false);
     }
   }
+  
 
   void _showDetailSheet(BuildContext context, TenantEntity t) {
     showModalBottomSheet(
@@ -540,9 +536,7 @@ class _TenantsPageState extends State<TenantsPage> {
   }
 }
 
-// ============================================================================
-// WIDGETS
-// ============================================================================
+
 
 class _EmptyStateIcon extends StatelessWidget {
   const _EmptyStateIcon();
@@ -641,6 +635,8 @@ class _TenantCard extends StatelessWidget {
 
   bool get _hasProfilePhoto => (tenant.tenantsUrl ?? '').trim().isNotEmpty;
   bool get _isCheckedOut => tenant.checkOutDate != null;
+  bool get _isLate => tenant.paymentStatus == 'belum_bayar';
+  bool get _hasNoRoom => !_isCheckedOut && (tenant.room ?? '').trim().isEmpty;
 
   Color get _avatarColor {
     const colors = [
@@ -653,7 +649,6 @@ class _TenantCard extends StatelessWidget {
     return colors[tenant.fullName.length % colors.length];
   }
 
-  bool get _isLate => tenant.paymentStatus == 'belum_bayar';
 
   @override
   Widget build(BuildContext context) {
@@ -718,42 +713,56 @@ class _TenantCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _isCheckedOut
-                            ? Colors.grey.shade100
-                            : _avatarColor.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _isCheckedOut ? 'Checkout' : (tenant.room ?? '-'),
-                        style: TextStyle(
-                          color: _isCheckedOut ? Colors.grey.shade500 : _avatarColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _isCheckedOut
-                                ? Colors.grey.shade100
-                                : (_isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7)),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            _isCheckedOut ? 'Non-aktif' : (_isLate ? 'Belum bayar' : 'Lunas'),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: _isCheckedOut
-                                  ? Colors.grey.shade500
-                                  : (_isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
-                            ),
-                          ),
-                        ),
+  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  decoration: BoxDecoration(
+    color: _isCheckedOut
+        ? Colors.grey.shade100
+        : _hasNoRoom
+            ? const Color(0xFFF1F5F9)
+            : _avatarColor.withOpacity(0.08),
+    borderRadius: BorderRadius.circular(8),
+  ),
+  child: Text(
+    _isCheckedOut ? 'Checkout' : (_hasNoRoom ? 'Belum ditempatkan' : tenant.room!),
+    style: TextStyle(
+      color: _isCheckedOut
+          ? Colors.grey.shade500
+          : _hasNoRoom
+              ? const Color(0xFF64748B)
+              : _avatarColor,
+      fontWeight: FontWeight.bold,
+      fontSize: 11,
+    ),
+  ),
+),
+const SizedBox(height: 5),
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+  decoration: BoxDecoration(
+    color: _isCheckedOut
+        ? Colors.grey.shade100
+        : _hasNoRoom
+            ? Colors.grey.shade100
+            : (_isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7)),
+    borderRadius: BorderRadius.circular(6),
+  ),
+  child: Text(
+    _isCheckedOut
+        ? 'Non-aktif'
+        : _hasNoRoom
+            ? 'Belum ada tagihan'
+            : (_isLate ? 'Belum bayar' : 'Lunas'),
+    style: TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      color: _isCheckedOut
+          ? Colors.grey.shade500
+          : _hasNoRoom
+              ? Colors.grey.shade500
+              : (_isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+    ),
+  ),
+),
                   ],
                 ),
               ],
@@ -773,17 +782,17 @@ class _TenantCard extends StatelessWidget {
                 children: [
                   _FooterMeta(
                     icon: Icons.calendar_today_rounded,
-                    label: 'Masuk 1 Jan 2024',
+                    value: 'occupancy.start_date',
                   ),
                   SizedBox(width: 14),
                   _FooterMeta(
                     icon: Icons.access_time_rounded,
-                    label: '6 bulan',
+                    value: 'occupancy.duration',
                   ),
                   Spacer(),
                   _FooterMeta(
                     icon: Icons.payments_outlined,
-                    label: 'Rp 750rb',
+                    value: 'occupancy.price',
                   ),
                 ],
               ),
@@ -850,9 +859,9 @@ class _TenantCard extends StatelessWidget {
 
 class _FooterMeta extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final String value;
 
-  const _FooterMeta({required this.icon, required this.label});
+  const _FooterMeta({required this.icon, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -861,15 +870,13 @@ class _FooterMeta extends StatelessWidget {
       children: [
         Icon(icon, size: 12, color: Colors.grey.shade400),
         const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text(value, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
       ],
     );
   }
 }
 
-// ============================================================================
-// DETAIL SHEET
-// ============================================================================
+
 
 class _TenantDetailSheet extends StatelessWidget {
   static const Color _primaryColor = Color(0xFF6D5EF6);
@@ -1005,31 +1012,31 @@ class _TenantDetailSheet extends StatelessWidget {
 
   Widget _buildIdentityHeader() {
   final isCheckedOut = tenant.checkOutDate != null;
+  final hasNoRoom = !isCheckedOut && !_hasRoom;
+  final String subtitleText = isCheckedOut
+      ? 'Sudah checkout'
+      : hasNoRoom
+          ? 'Belum ditempatkan di kamar'
+          : (tenant.room ?? '-');
+
   return Column(
     children: [
       Text(
         tenant.fullName,
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          color: _slateLight,
-        ),
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _slateLight),
       ),
       const SizedBox(height: 2),
       Text(
-        isCheckedOut ? 'Sudah checkout' : (tenant.room ?? '-'),
-        style: TextStyle(
-          fontSize: 13,
-          color: Colors.grey.shade500,
-          fontWeight: FontWeight.w500,
-        ),
+        subtitleText,
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
       ),
     ],
   );
 }
 
-  Widget _buildStatusBadge() {
+Widget _buildStatusBadge() {
   final isCheckedOut = tenant.checkOutDate != null;
+  final hasNoRoom = !isCheckedOut && !_hasRoom;
 
   final String label;
   final Color bg;
@@ -1039,6 +1046,10 @@ class _TenantDetailSheet extends StatelessWidget {
     label = 'Sudah checkout';
     bg = Colors.grey.shade200;
     fg = Colors.grey.shade600;
+  } else if (hasNoRoom) {
+    label = 'Belum ditempatkan';
+    bg = const Color(0xFFF1F5F9);
+    fg = const Color(0xFF64748B);
   } else if (_isLate) {
     label = 'Belum bayar bulan ini';
     bg = const Color(0xFFFEF3C7);
@@ -1051,14 +1062,8 @@ class _TenantDetailSheet extends StatelessWidget {
 
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-    decoration: BoxDecoration(
-      color: bg,
-      borderRadius: BorderRadius.circular(100),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
-    ),
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(100)),
+    child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
   );
 }
 
@@ -1549,9 +1554,6 @@ Widget _buildActiveRoomInfo(BuildContext context) {
   }
 }
 
-// ============================================================================
-// INFO TILE
-// ============================================================================
 
 class _InfoTile extends StatelessWidget {
   final IconData icon;
