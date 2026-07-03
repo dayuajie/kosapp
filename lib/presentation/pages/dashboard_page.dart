@@ -1349,14 +1349,14 @@ class _DashboardPageState extends State<DashboardPage>
         'label': 'Nanti\nGanti',
         'color': const Color(0xFFF59E0B),
         'bgColor': const Color(0xFFFFFBEB),
-        'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LaporanKeuanganPage())),
+        'onTap': () {},
       },
       {
         'icon': Icons.view_headline,
         'label': 'Lihat\nlainnya',
         'color': const Color(0xFFEF4444),
         'bgColor': const Color(0xFFFEF2F2),
-        'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinancePage())),
+        'onTap': () {},
       },
     ];
 
