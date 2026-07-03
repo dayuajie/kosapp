@@ -11,20 +11,22 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
 
 
   @override
-  Future<List<OccupancyEntity>> fetchOccupiedOccupancies({
-    required String kosId,
-  }) async {
-    final raw = await _client
-        .from('occupancies')
-        .select('id, room_id, kos_id, status, tenant_id, start_date, end_date, created_at')
-        .eq('kos_id', kosId)
-        .eq('status', 'occupied')
-        .order('created_at', ascending: false);
+Future<List<OccupancyEntity>> fetchOccupiedOccupancies({
+  required String kosId,
+}) async {
+  final raw = await _client
+      .from('occupancies')
+      .select(
+        'id, room_id, kos_id, status, tenant_id, start_date, end_date, '
+        'created_at, price, rent_type, payment_status, paid_amount',
+      )
+      .eq('kos_id', kosId)
+      .eq('status', 'occupied')
+      .order('created_at', ascending: false);
 
-
-    final rows = (raw as List?)?.cast<Map<String, dynamic>>() ?? [];
-    return rows.map(_mapToEntity).toList();
-  }
+  final rows = (raw as List?)?.cast<Map<String, dynamic>>() ?? [];
+  return rows.map(_mapToEntity).toList();
+}
 
   @override
   Future<Set<String>> fetchOccupiedRoomIds({
@@ -145,6 +147,18 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
         .update(payload)
         .eq('id', occupancyId);
   }
+  @override
+Future<void> updatePaymentStatus({
+  required String occupancyId,
+  required String paymentStatus,
+  String? paidAmount,
+}) async {
+  final payload = <String, dynamic>{
+    'payment_status': paymentStatus,
+    if (paidAmount != null) 'paid_amount': paidAmount,
+  };
+  await _client.from('occupancies').update(payload).eq('id', occupancyId);
+}
 
   @override
   Future<void> deleteOccupanciesByRoom({
@@ -167,18 +181,22 @@ class SupabaseOccupancyRepository implements OccupancyRepository {
   }
 
   OccupancyEntity _mapToEntity(Map<String, dynamic> r) {
-    return OccupancyEntity(
-      id: r['id'].toString(),
-      roomId: r['room_id'].toString(),
-      kosId: r['kos_id'].toString(),
-      status: (r['status'] ?? 'vacant').toString(),
-      tenantId: r['tenant_id']?.toString(),
-      startDate: _parseDate(r['start_date']),
-      endDate: _parseDate(r['end_date']),
-      createdAt: _parseDate(r['created_at']),
-      updatedAt: _parseDate(r['updated_at']),
-    );
-  }
+  return OccupancyEntity(
+    id: r['id'].toString(),
+    roomId: r['room_id'].toString(),
+    kosId: r['kos_id'].toString(),
+    status: (r['status'] ?? 'vacant').toString(),
+    tenantId: r['tenant_id']?.toString(),
+    startDate: _parseDate(r['start_date']),
+    endDate: _parseDate(r['end_date']),
+    createdAt: _parseDate(r['created_at']),
+    updatedAt: _parseDate(r['updated_at']),
+    price: r['price']?.toString(),
+    rentType: r['rent_type']?.toString(),
+    paymentStatus: r['payment_status']?.toString(),
+    paidAmount: r['paid_amount']?.toString(),
+  );
+}
 
   DateTime? _parseDate(dynamic raw) {
     if (raw == null) return null;

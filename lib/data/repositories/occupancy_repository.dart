@@ -16,16 +16,28 @@ abstract class OccupancyRepository {
     required String kosId,
   });
   Future<OccupancyEntity> createOccupancy({
-    required String roomId,
-    required String kosId,
-    required String tenantId,
-    required DateTime startDate,
-    DateTime? endDate,
-  });
+  required String roomId,
+  required String kosId,
+  required String tenantId,
+  required DateTime startDate,
+  DateTime? endDate,
+  String? price,
+  String? rentType,
+  String? paymentStatus,
+  String? paymentMethod,
+  String? paidAmount,
+  String? notes,
+});
   Future<void> updateOccupancyStatus({
     required String occupancyId,
     required String status,
     DateTime? endDate,
+  });
+
+  Future<void> updatePaymentStatus({
+    required String occupancyId,
+    required String paymentStatus,
+    String? paidAmount,
   });
 
   Future<void> deleteOccupanciesByRoom({
