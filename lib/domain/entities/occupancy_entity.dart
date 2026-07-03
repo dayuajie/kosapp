@@ -9,6 +9,14 @@ class OccupancyEntity {
   final DateTime? endDate;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? price;
+  final String? rentType;
+  final String? paymentStatus;
+  final String? paidAmount;
+
+
+
+
   const OccupancyEntity({
     required this.id,
     required this.roomId,
@@ -19,6 +27,10 @@ class OccupancyEntity {
     this.endDate,
     this.createdAt,
     this.updatedAt,
+    this.price,
+    this.rentType,
+    this.paymentStatus,
+    this.paidAmount,
   });
 
   bool get isOccupied => status == 'occupied';
@@ -34,6 +46,10 @@ class OccupancyEntity {
     DateTime? endDate,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? price,
+    String? rentType,
+    String? paymentStatus,
+    String? paidAmount,
   }) {
     return OccupancyEntity(
       id: id ?? this.id,
@@ -45,6 +61,10 @@ class OccupancyEntity {
       endDate: endDate ?? this.endDate,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      price: price ?? this.price,
+      rentType: rentType ?? this.rentType,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paidAmount: paidAmount ?? this.paidAmount,
     );
   }
 
