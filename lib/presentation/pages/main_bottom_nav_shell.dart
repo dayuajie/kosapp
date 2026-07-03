@@ -9,6 +9,7 @@ import 'payments_page.dart';
 import 'tenants_page.dart';
 import 'settings_page.dart';
 import 'tenant_form_page.dart';
+import '../../core/navigation_request_notifier.dart';
 
 
 class MainBottomNavShell extends StatefulWidget {
@@ -34,11 +35,21 @@ class _MainBottomNavShellState extends State<MainBottomNavShell> {
         }
       }
     });
+    NavigationRequestNotifier.instance.addListener(_onNavigationRequested);
   }
+
+  void _onNavigationRequested() { 
+  final idx = NavigationRequestNotifier.instance.requestedIndex;
+  if (idx != null && mounted) {
+    setState(() => currentIndex = idx);
+    NavigationRequestNotifier.instance.clear();
+  }
+}
 
   @override
   void dispose() {
     _authSubscription?.cancel(); 
+    NavigationRequestNotifier.instance.removeListener(_onNavigationRequested);
     super.dispose();
   }
 

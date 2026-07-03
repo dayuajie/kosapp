@@ -8,6 +8,7 @@ import '../../domain/entities/tenant_entity.dart';
 import '../../core/tenant_refresh_notifier.dart';
 import '../../data/repositories/supabase_finance_repository.dart';
 import '../../data/repositories/supabase_kos_repository.dart';
+import '../../core/navigation_request_notifier.dart';
 
 class AssignRoomPage extends StatefulWidget {
   final String? tenantId;
@@ -218,21 +219,23 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
     if (!mounted) return;
     _showSnackBar('Penghuni berhasil ditempatkan!');
     TenantRefreshNotifier.instance.notifyTenantsChanged();
-
-    final canPop = Navigator.of(context).canPop();
-    if (canPop) {
+   setState(() {
+      _selectedTenantId = null;
+      _selectedRoomId = null;
+      _priceCtrl.clear();
+      _paidAmountCtrl.clear();
+      _notesCtrl.clear();
+      _paymentStatus = 'Lunas';       
+      _paymentMethod = 'Transfer Bank';
+      _rentType = 'Bulanan';
+      _startDate = DateTime.now();
+      _calculateCheckoutByRentType(); 
+    });
+    if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop(true);
-    } else {
-      // Dipakai sebagai tab (IndexedStack) — jangan pop, cukup reset & reload
-      setState(() {
-        _selectedTenantId = null;
-        _selectedRoomId = null;
-        _priceCtrl.clear();
-        _notesCtrl.clear();
-      });
-      await _loadRooms();
-      await _loadTenants();
     }
+    NavigationRequestNotifier.instance.requestTab(0);
+    return;
   } catch (e) {
     _showSnackBar('Gagal memproses: $e', isError: true);
   } finally {
