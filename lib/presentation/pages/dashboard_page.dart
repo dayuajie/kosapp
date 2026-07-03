@@ -31,6 +31,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   // ── Kos state ─────────────────────────────────────────────────────────────
   late final SupabaseKosRepository _kosRepo;
+  late final KosOverviewCubit _overviewCubit;
   List<Map<String, dynamic>> _kosList = const [];
   bool _isLoadingKos = false;
   bool _isSubmittingKos = false;
@@ -47,6 +48,7 @@ class _DashboardPageState extends State<DashboardPage>
   void initState() {
     super.initState();
     _kosRepo = SupabaseKosRepository();
+    _overviewCubit = KosOverviewCubit();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -57,6 +59,7 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void dispose() {
     _animationController.dispose();
+    _overviewCubit.close();
     _kosNameCtrl.dispose();
     _kosAddressCtrl.dispose();
     _kosCapacityCtrl.dispose();
@@ -101,47 +104,51 @@ class _DashboardPageState extends State<DashboardPage>
 
   // ── Kos logic ─────────────────────────────────────────────────────────────
   Future<void> _loadKos() async {
-    final ownerId = _kosRepo.currentUserId;
-    if (ownerId == null || ownerId.isEmpty) return;
+  final ownerId = _kosRepo.currentUserId;
+  if (ownerId == null || ownerId.isEmpty) return;
 
-    setState(() => _isLoadingKos = true);
-    try {
-      final list = await _kosRepo.fetchKosByOwner(ownerId);
-      if (!mounted) return;
+  setState(() => _isLoadingKos = true);
+  try {
+    final list = await _kosRepo.fetchKosByOwner(ownerId);
+    if (!mounted) return;
 
-      final metaKosId = Supabase.instance.client.auth.currentUser
-          ?.userMetadata?['kos_id'] as String?;
+    final metaKosId = _kosRepo.currentKosId; // ganti akses langsung userMetadata
 
-      setState(() {
-        _kosList = list;
-        if (list.isNotEmpty) {
-          _activeKos = list.firstWhere(
-            (k) => k['id'].toString() == metaKosId,
-            orElse: () => list.first,
-          );
-        } else {
-          _activeKos = null;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _openKosBottomSheet();
-          });
-        }
+    setState(() {
+      _kosList = list;
+      if (list.isNotEmpty) {
+        _activeKos = list.firstWhere(
+          (k) => k['id'].toString() == metaKosId,
+          orElse: () => list.first,
+        );
+      } else {
+        _activeKos = null;
+      }
+    });
+
+    if (_activeKos != null) {
+      _overviewCubit.load(kosId: _activeKos!['id'].toString());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openKosBottomSheet();
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _kosList = const []);
-    } finally {
-      if (mounted) setState(() => _isLoadingKos = false);
     }
+  } catch (_) {
+    if (!mounted) return;
+    setState(() => _kosList = const []);
+  } finally {
+    if (mounted) setState(() => _isLoadingKos = false);
   }
+}
 
   Future<void> _switchKos(Map<String, dynamic> kos) async {
-    final kosId = kos['id'].toString();
-    await Supabase.instance.client.auth.updateUser(
-      UserAttributes(data: {'kos_id': kosId}),
-    );
-    setState(() => _activeKos = kos);
-    if (mounted) context.read<KosOverviewCubit>().load();
-  }
+  final kosId = kos['id'].toString();
+  await Supabase.instance.client.auth.updateUser(
+    UserAttributes(data: {'kos_id': kosId}),
+  );
+  setState(() => _activeKos = kos);
+  _overviewCubit.load(kosId: kosId);
+}
 
   Future<void> _saveKos() async {
     final name    = _kosNameCtrl.text.trim();
@@ -731,6 +738,7 @@ class _DashboardPageState extends State<DashboardPage>
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   BlocBuilder<KosOverviewCubit, KosOverviewState>(
+                    bloc: _overviewCubit,
                     builder: (context, state) {
                       if (state is KosOverviewLoading ||
                           state is KosOverviewInitial) {
@@ -1454,22 +1462,27 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildErrorState(BuildContext context, KosOverviewError state, TextTheme textTheme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 44, color: Color(0xFFEF4444)),
-            const SizedBox(height: 12),
-            Text(state.message, style: const TextStyle(color: Color(0xFF475569), fontSize: 14)),
-            const SizedBox(height: 12),
-            ElevatedButton(
-                onPressed: () => context.read<KosOverviewCubit>().load(),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6D5EF6), foregroundColor: Colors.white),
-                child: const Text('Coba Lagi')),
-          ],
-        ),
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min, 
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 44, color: Color(0xFFEF4444)),
+          const SizedBox(height: 12),
+          Text(state.message, style: const TextStyle(color: Color(0xFF475569), fontSize: 14)),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () {
+              final kosId = _activeKos?['id']?.toString();
+              if (kosId != null) _overviewCubit.load(kosId: kosId);
+            },
+            child: const Text('Coba Lagi'), 
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
