@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../data/repositories/supabase_tenant_repository.dart';
 import '../../data/repositories/supabase_room_repository.dart';
 import '../../data/repositories/supabase_occupancy_repository.dart';
 import '../../domain/entities/room_entity.dart';
+import '../../domain/entities/tenant_entity.dart';
 import '../../core/tenant_refresh_notifier.dart';
+import '../../data/repositories/supabase_finance_repository.dart';
+import '../../data/repositories/supabase_kos_repository.dart';
 
 class AssignRoomPage extends StatefulWidget {
   final String? tenantId;
@@ -20,7 +22,7 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   late final _repo = SupabaseRoomRepository(occupancyRepo: _occupancyRepo);
   final SupabaseTenantRepository _tenantRepo = SupabaseTenantRepository();
   List<RoomEntity> _rooms = [];
-  List<dynamic> _tenants = [];
+  List<TenantEntity> _tenants = [];
 
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -30,12 +32,9 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   String? _selectedRoomId;
   DateTime? _startDate;
   DateTime? _endDate;
-  String? get _currentKosId {
-    final user = Supabase.instance.client.auth.currentUser;
-    return user?.userMetadata?['kos_id']?.toString();
-  }
-
+  String? get _currentKosId => SupabaseKosRepository().currentKosId;
   final _priceCtrl = TextEditingController();
+  final _paidAmountCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   String _paymentMethod = 'Transfer Bank';
   String _rentType = 'Bulanan'; 
@@ -167,6 +166,23 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   if (_priceCtrl.text.trim().isEmpty) return _showSnackBar('Harga sewa tidak boleh kosong', isError: true);
   if (_startDate == null) return _showSnackBar('Tanggal masuk belum dipilih', isError: true);
 
+  // Jumlah yang benar-benar dibayar saat check-in ini.
+  // - Lunas  -> otomatis sebesar harga sewa.
+  // - Dicicil -> ambil dari field "Jumlah dibayar sekarang" (opsional, boleh kosong/0).
+  final paidAmountRaw =
+      _paymentStatus == 'Lunas' ? _priceCtrl.text.trim() : _paidAmountCtrl.text.trim();
+
+  if (_paymentStatus == 'Dicicil' && paidAmountRaw.isNotEmpty) {
+    final paidVal = double.tryParse(paidAmountRaw) ?? 0;
+    final priceVal = double.tryParse(_priceCtrl.text.trim()) ?? 0;
+    if (paidVal > priceVal) {
+      return _showSnackBar(
+        'Jumlah yang sudah dibayar tidak boleh melebihi harga sewa',
+        isError: true,
+      );
+    }
+  }
+
   final kosId = _currentKosId;
   if (kosId == null || kosId.isEmpty) {
     return _showSnackBar('Data kos tidak ditemukan. Pastikan akun sudah terhubung ke kos.', isError: true);
@@ -192,13 +208,16 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
           rentType: _rentType,
           paymentStatus: _paymentStatus,
           paymentMethod: _paymentMethod,
-          paidAmount: _paymentStatus == 'Lunas' ? _priceCtrl.text.trim() : null,
+          paidAmount: paidAmountRaw.isEmpty ? null : paidAmountRaw,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         );
 
+    
+    await _recordCheckInTransaction(kosId: kosId, paidAmountRaw: paidAmountRaw);
+
     if (!mounted) return;
     _showSnackBar('Penghuni berhasil ditempatkan!');
-    TenantRefreshNotifier.instance.notifyTenantsChanged(); // <-- tambahan baru
+    TenantRefreshNotifier.instance.notifyTenantsChanged();
 
     final canPop = Navigator.of(context).canPop();
     if (canPop) {
@@ -221,6 +240,51 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
   }
 }
 
+  Future<void> _recordCheckInTransaction({
+  required String kosId,
+  required String paidAmountRaw,
+}) async {
+  final amount = double.tryParse(
+      paidAmountRaw.replaceAll(',', '').replaceAll('.', ''),
+    ) ??
+    0;
+  if (amount <= 0) return;
+
+  String tenantName = 'Penyewa';
+  for (final t in _tenants) {
+    if (t.id == _selectedTenantId) {
+      tenantName = t.fullName;
+      break;
+    }
+  }
+
+  RoomEntity? room;
+  for (final r in _rooms) {
+    if (r.id == _selectedRoomId) {
+      room = r;
+      break;
+    }
+  }
+  if (room == null) return;
+
+  try {
+    await SupabaseFinanceRepository().createTransaction(
+      kosId: kosId,
+      date: _startDate!,
+      description: 'Sewa Kamar ${room.name} - $tenantName',
+      amount: amount,
+      type: TransactionType.income,
+      category: 'Sewa Kamar',
+    );
+  } catch (e) {
+    if (!mounted) return;
+    _showSnackBar(
+      'Penghuni tersimpan, tapi gagal mencatat transaksi keuangan: $e',
+      isError: true,
+    );
+  }
+}
+
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -236,12 +300,12 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
 
   @override
   void dispose() {
-    TenantRefreshNotifier.instance.removeListener(_onDataChanged);
-    _priceCtrl.dispose();
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
+  TenantRefreshNotifier.instance.removeListener(_onDataChanged);
+  _priceCtrl.dispose();
+  _paidAmountCtrl.dispose();
+  _notesCtrl.dispose();
+  super.dispose();
+}
   // ========== WIDGET PEMBANTU DENGAN STYLING HALUS ==========
   Widget _buildSectionTitle(String title) {
     return Text(
@@ -512,7 +576,10 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
                             ),
                           );
                         }).toList(),
-                        onChanged: (v) => setState(() => _paymentStatus = v ?? 'Lunas / Cash'),
+                        onChanged: (v) => setState(() {
+                          _paymentStatus = v ?? 'Lunas / Cash';
+                          if (_paymentStatus == 'Lunas') _paidAmountCtrl.clear();
+                        }),
                         icon: const Icon(Icons.expand_more, color: Color(0xFF94A3B8)),
                         dropdownColor: Colors.white,
                         style: const TextStyle(
@@ -522,6 +589,26 @@ class _AssignRoomPageState extends State<AssignRoomPage> {
                         ),
                         decoration: _inputDecoration('Status Pembayaran', Icons.fact_check_outlined),
                       ),
+                      if (_paymentStatus == 'Dicicil') ...[
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _paidAmountCtrl,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E293B),
+                          ),
+                          decoration: _inputDecoration(
+                            'Jumlah Dibayar Sekarang (Opsional)',
+                            Icons.price_change_outlined,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Kosongkan jika belum ada pembayaran sama sekali. Transaksi hanya dicatat sebesar jumlah ini.',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       // Dropdown Metode Pembayaran
                       DropdownButtonFormField<String>(
