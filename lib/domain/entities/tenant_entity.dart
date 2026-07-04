@@ -4,9 +4,9 @@ class TenantEntity {
   final String? phone;
   final String? room;
   final DateTime? moveInDate;
-  final DateTime? endDate;        // referensi tanggal keluar (rencana, dari occupancies.end_date)
+  final DateTime? endDate;        
   final int? rentPrice;
-  final String? rentType;         // dari occupancies.rent_type
+  final String? rentType;        
   final String? paymentStatus;
   final String? emergencyContact;
   final String? address;
@@ -14,7 +14,8 @@ class TenantEntity {
   final String? tenantsUrl;
   final String? idCardUrl;
   final String? notes;
-  final DateTime? checkOutDate;   // checkout aktual, dari tenants.check_out
+  final DateTime? checkOutDate; 
+  final DateTime? createdAt;   
 
   const TenantEntity({
     required this.id,
@@ -33,6 +34,7 @@ class TenantEntity {
     this.idCardUrl,
     this.notes,
     this.checkOutDate,
+    this.createdAt,
   });
 
   String get initials {
