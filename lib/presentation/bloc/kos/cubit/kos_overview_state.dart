@@ -1,3 +1,4 @@
+
 part of 'kos_overview_cubit.dart';
 
 abstract class KosOverviewState {
@@ -24,6 +25,8 @@ class KosOverviewLoaded extends KosOverviewState {
   final List<dynamic>? upcomingPayments;
   final List<PaymentEntity> latestPayments;
   final List<OverdueEntity> overdues;
+  final List<ActivityEntity> recentActivities;
+  final List<FlSpot> chartSpots;
 
   const KosOverviewLoaded({
     required this.occupiedRooms,
@@ -37,6 +40,8 @@ class KosOverviewLoaded extends KosOverviewState {
     this.upcomingPayments,
     required this.latestPayments,
     required this.overdues,
+    this.recentActivities = const [],
+    this.chartSpots = const [],
   });
 }
 
@@ -45,4 +50,3 @@ class KosOverviewError extends KosOverviewState {
 
   const KosOverviewError({required this.message});
 }
-
