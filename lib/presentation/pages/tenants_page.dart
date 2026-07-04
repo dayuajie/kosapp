@@ -647,16 +647,7 @@ class _TenantCard extends StatelessWidget {
   bool get _isLate => tenant.paymentStatus == 'belum_bayar';
   bool get _hasNoRoom => !_isCheckedOut && (tenant.room ?? '').trim().isEmpty;
 
-  Color get _avatarColor {
-    const colors = [
-      Color(0xFF6D5EF6),
-      Color(0xFFDC2626),
-      Color(0xFF16A34A),
-      Color(0xFFD97706),
-      Color(0xFF0284C7),
-    ];
-    return colors[tenant.fullName.length % colors.length];
-  }
+  
 
   String get _startDateLabel {
   final d = tenant.moveInDate;
@@ -703,7 +694,7 @@ String get _priceLabel {
           children: [
             Row(
               children: [
-                _buildAvatar(),
+                
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -744,148 +735,98 @@ String get _priceLabel {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  decoration: BoxDecoration(
-    color: _isCheckedOut
-        ? Colors.grey.shade100
-        : _hasNoRoom
-            ? const Color(0xFFF1F5F9)
-            : _avatarColor.withOpacity(0.08),
-    borderRadius: BorderRadius.circular(8),
-  ),
-  child: Text(
-    _isCheckedOut ? 'Checkout' : (_hasNoRoom ? 'Belum ditempatkan' : tenant.room!),
-    style: TextStyle(
-      color: _isCheckedOut
-          ? Colors.grey.shade500
-          : _hasNoRoom
-              ? const Color(0xFF64748B)
-              : _avatarColor,
-      fontWeight: FontWeight.bold,
-      fontSize: 11,
-    ),
-  ),
-),
-const SizedBox(height: 5),
-Container(
-  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-  decoration: BoxDecoration(
-    color: _isCheckedOut
-        ? Colors.grey.shade100
-        : _hasNoRoom
-            ? Colors.grey.shade100
-            : (_isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7)),
-    borderRadius: BorderRadius.circular(6),
-  ),
-  child: Text(
-    _isCheckedOut
-        ? 'Non-aktif'
-        : _hasNoRoom
-            ? 'Belum ada tagihan'
-            : (_isLate ? 'Belum bayar' : 'Lunas'),
-    style: TextStyle(
-      fontSize: 10,
-      fontWeight: FontWeight.w600,
-      color: _isCheckedOut
-          ? Colors.grey.shade500
-          : _hasNoRoom
-              ? Colors.grey.shade500
-              : (_isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
-    ),
-  ),
-),
+                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                         decoration: BoxDecoration(
+                           color: _isCheckedOut
+                               ? Colors.grey.shade100
+                               : _hasNoRoom
+                                    ? Colors.grey.shade100
+                                    : (_isLate ? const Color(0xFFFEE2E2) : const Color(0xFFD1FAE5)),
+                         ),
+                         
+                         child: Text(
+                           _isCheckedOut ? 'Checkout' : (_hasNoRoom ? 'Belum ditempatkan' : tenant.room!),
+                           style: TextStyle(
+                             color: _isCheckedOut
+                                 ? Colors.grey.shade500
+                                 : _hasNoRoom
+                                      ? Colors.grey.shade500
+                                      : const Color(0xFF1E293B),      
+                                    
+                             fontWeight: FontWeight.bold,
+                             fontSize: 11,
+                           ),
+                         ),
+                        ),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _isCheckedOut
+                            ? Colors.grey.shade100
+                            : _hasNoRoom
+                                ? Colors.grey.shade100
+                                : (_isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _isCheckedOut
+                            ? 'Non-aktif'
+                            : _hasNoRoom
+                                ? 'Belum ada tagihan'
+                                : (_isLate ? 'Belum bayar' : 'Lunas'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: _isCheckedOut
+                              ? Colors.grey.shade500
+                              : _hasNoRoom
+                                  ? Colors.grey.shade500
+                                  : (_isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
             Container(
-  padding: const EdgeInsets.only(top: 10),
-  decoration: const BoxDecoration(
-    border: Border(
-      top: BorderSide(
-        color: Color(0xFFF1F5F9),
-        width: 1,
-      ),
-    ),
-  ),
-  child: Row(
-    children: [
-      _FooterMeta(
-        icon: Icons.calendar_today_rounded,
-        value: _startDateLabel,
-      ),
-      const SizedBox(width: 14),
-      _FooterMeta(
-        icon: Icons.access_time_rounded,
-        value: _durationLabel,
-      ),
-      const Spacer(),
-      _FooterMeta(
-        icon: Icons.payments_outlined,
-        value: _priceLabel,
-      ),
-    ],
-  ),
-),
+              padding: const EdgeInsets.only(top: 10),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: Color(0xFFF1F5F9),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  _FooterMeta(
+                    icon: Icons.calendar_today_rounded,
+                    value: _startDateLabel,
+                  ),
+                  const SizedBox(width: 14),
+                  _FooterMeta(
+                    icon: Icons.access_time_rounded,
+                    value: _durationLabel,
+                  ),
+                  const Spacer(),
+                  _FooterMeta(
+                    icon: Icons.payments_outlined,
+                    value: _priceLabel,
+                 ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAvatar() {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _avatarColor.withOpacity(0.08),
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      child: ClipOval(
-        child: _hasProfilePhoto
-            ? CachedNetworkImage(
-                imageUrl: tenant.tenantsUrl!,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                memCacheWidth: 132,
-                memCacheHeight: 132,
-                placeholder: (_, __) => Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: _avatarColor,
-                    ),
-                  ),
-                ),
-                errorWidget: (_, __, ___) => Center(
-                  child: Text(
-                    tenant.initials,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: _avatarColor,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              )
-            : Center(
-                child: Text(
-                  tenant.initials,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: _avatarColor,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-      ),
-    );
-  }
+  
 }
 
 class _FooterMeta extends StatelessWidget {
@@ -1423,7 +1364,7 @@ Widget _buildActiveRoomInfo(BuildContext context) {
           Expanded(
             child: _InfoTile(
               icon: Icons.event_rounded,
-              label: 'Referensi tanggal keluar',
+              label: 'Referensi tanggal\nkeluar',
               value: tenant.endDate == null
                   ? '-'
                   : DateFormat('dd MMM yyyy', 'id_ID').format(tenant.endDate!),

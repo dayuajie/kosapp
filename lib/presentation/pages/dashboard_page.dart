@@ -7,11 +7,12 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kos_app/data/repositories/supabase_kos_repository.dart';
 import 'package:kos_app/presentation/bloc/kos/cubit/kos_overview_cubit.dart';
-import 'package:kos_app/presentation/widgets/payment_history_item.dart';
 import 'package:kos_app/presentation/widgets/section_header.dart';
-import 'package:kos_app/presentation/pages/laporan_keuangan_page.dart';
 import 'package:kos_app/presentation/pages/rooms_page.dart';
 import 'package:kos_app/presentation/pages/finance/user_finance/finance_page.dart';
+import 'package:kos_app/core/tenant_refresh_notifier.dart';
+import '../../core/transaction_refresh_notifier.dart';
+import '../../domain/entities/activity_entity.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -54,10 +55,29 @@ class _DashboardPageState extends State<DashboardPage>
       duration: const Duration(milliseconds: 600),
     )..forward();
     _loadKos();
+    TenantRefreshNotifier.instance.addListener(_onDataChanged);
+    TransactionRefreshNotifier.instance.addListener(_onTransactionChanged);
   }
+
+    void _onDataChanged() { 
+    if (!mounted) return;
+    final kosId = _activeKos?['id']?.toString();
+    if (kosId != null) _overviewCubit.load(kosId: kosId);
+  }
+
+  void _onTransactionChanged() {
+    if (!mounted) return;
+    final kosId = _activeKos?['id']?.toString();
+    if (kosId != null) {
+      _overviewCubit.load(kosId: kosId);
+    }
+  }
+
 
   @override
   void dispose() {
+    TransactionRefreshNotifier.instance.removeListener(_onTransactionChanged);
+    TenantRefreshNotifier.instance.removeListener(_onDataChanged);
     _animationController.dispose();
     _overviewCubit.close();
     _kosNameCtrl.dispose();
@@ -543,192 +563,227 @@ class _DashboardPageState extends State<DashboardPage>
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Warna background clean & premium
+      // Di bagian Scaffold, gunakan AppBar biasa (bukan SliverAppBar):
+
+appBar: AppBar(
+        backgroundColor: const Color(0xFFF8FAFC),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        title: const Text(
+          'KOSKITA',
+          style: TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
+        actions: [
+          // Notifikasi saja, tanpa icon yang tidak perlu
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Color(0xFF64748B),
+                  size: 22,
+                ),
+                onPressed: () {},
+              ),
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF43F5E),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFF8FAFC),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      backgroundColor: const Color(
+        0xFFF8FAFC,
+      ), 
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // ── HEADER HERO ───────────────────────────────────────────────
             SliverToBoxAdapter(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF6D5EF6),
-                      Color(0xFF7C6EFA),
-                      Color(0xFF48B3FF),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(32),
-                    bottomRight: Radius.circular(32),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── TOP BAR: SWITCHER & UTILITIES ──
-                      Row(
+              child: Column(
+                children: [
+                  
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF6D5EF6),
+                          Color(0xFF7C6EFA),
+                          Color(0xFF48B3FF),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(28),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6D5EF6).withOpacity(0.25),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Stack(
                         children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: _kosList.isEmpty ? _openKosBottomSheet : _showKosSwitcherSheet,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withOpacity(0.18)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.home_work_rounded,
-                                        color: Colors.white,
-                                        size: 14,
+                          // Decorative circles
+                          Positioned(
+                            right: -40,
+                            top: -40,
+                            child: Container(
+                              width: 140,
+                              height: 140,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.06),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: -20,
+                            bottom: -30,
+                            child: Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withOpacity(0.04),
+                              ),
+                            ),
+                          ),
+                          // Content
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Properti aktif chip
+                                GestureDetector(
+                                  onTap: _kosList.isEmpty
+                                      ? _openKosBottomSheet
+                                      : _showKosSwitcherSheet,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.18),
+                                        width: 0.5,
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            'PROPERTI AKTIF',
-                                            style: TextStyle(
-                                              color: Colors.white.withOpacity(0.6),
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.8,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(
+                                              0.2,
                                             ),
+                                            shape: BoxShape.circle,
                                           ),
-                                          const SizedBox(height: 1),
-                                          _isLoadingKos
-                                              ? const SizedBox(
-                                                  width: 12,
-                                                  height: 12,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 1.5,
-                                                    color: Colors.white,
-                                                  ),
-                                                )
-                                              : Text(
-                                                  _activeKos?['name']?.toString() ?? 'Tambah Kos',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
+                                          child: const Icon(
+                                            Icons.home_work_rounded,
+                                            color: Colors.white,
+                                            size: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        _isLoadingKos
+                                            ? const SizedBox(
+                                                width: 12,
+                                                height: 12,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 1.5,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : Text(
+                                                _activeKos?['name']
+                                                        ?.toString() ??
+                                                    'Tambah Kos',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
-                                        ],
-                                      ),
+                                              ),
+                                        const SizedBox(width: 8),
+                                        Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          color: Colors.white.withOpacity(0.7),
+                                          size: 16,
+                                        ),
+                                      ],
                                     ),
-                                    Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                      color: Colors.white.withOpacity(0.8),
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Text logo KOSKITA
-                          const SizedBox(width: 10),
-                          const Text(
-                            'KOSKITA',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          // Notification bell (dipindah ke kanan text logo)
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              GestureDetector(
-                                onTap: () {},
-                                child: Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: Colors.white.withOpacity(0.1)),
                                   ),
-                                  child: const Icon(
-                                    Icons.notifications_none_rounded,
+                                ),
+                                const SizedBox(height: 24),
+                                // Greeting
+                                Text(
+                                  '${_greeting()},',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.75),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Pengelola Properti',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    size: 22,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.8,
                                   ),
                                 ),
-                              ),
-                              Positioned(
-                                right: 10,
-                                top: 10,
-                                child: Container(
-                                  width: 7,
-                                  height: 7,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF43F5E),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: const Color(0xFF6D5EF6), width: 1.5),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Berikut adalah rangkuman performa operasional kos Anda.',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.7),
+                                    fontSize: 12,
+                                    height: 1.5,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 32),
-                      // ── GREETING ──
-                      Text(
-                        '${_greeting()},',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.75),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text(
-                        'Pengelola Properti 👋',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Berikut adalah rangkuman performa operasional kos Anda hari ini.',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
 
@@ -765,7 +820,7 @@ class _DashboardPageState extends State<DashboardPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildTimeRangeSelector(),
+                            
                             const SizedBox(height: 20),
                             _buildOccupancyCard(s, totalRooms, occupancyRate),
                             const SizedBox(height: 20),
@@ -800,17 +855,13 @@ class _DashboardPageState extends State<DashboardPage>
                             const SizedBox(height: 16),
                             _buildNetProfitCard(s, textTheme),
                             const SizedBox(height: 24),
-                            if (s.upcomingPayments?.isNotEmpty ?? false) ...[
-                              _buildUpcomingPaymentsSection(s, textTheme),
-                              const SizedBox(height: 16),
-                            ],
                             if (s.overdues.isNotEmpty) ...[
                               _buildOverdueSection(s, textTheme),
                               const SizedBox(height: 16),
                             ],
                             _buildQuickActionsSection(),
                             const SizedBox(height: 28),
-                            _buildPaymentHistorySection(s, textTheme),
+                            _buildActivityFeedSection(s, textTheme),
                           ],
                         ),
                       );
@@ -829,52 +880,7 @@ class _DashboardPageState extends State<DashboardPage>
   //  WIDGET BUILDERS
   // ══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildTimeRangeSelector() {
-    final ranges = ['Minggu', 'Bulan', 'Tahun'];
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        children: List.generate(ranges.length, (index) {
-          final isSelected = _selectedTimeRange == index;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedTimeRange = index),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(colors: [Color(0xFF6D5EF6), Color(0xFF7C6EFA)])
-                      : null,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  ranges[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                    color: isSelected ? Colors.white : const Color(0xFF64748B),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
+  
 
   Widget _buildOccupancyCard(KosOverviewLoaded s, int totalRooms, double occupancyRate) {
     return Container(
@@ -1048,6 +1054,7 @@ class _DashboardPageState extends State<DashboardPage>
       ),
     );
   }
+  
 
   Widget _buildEnhancedSummaryCard({
     required String title,
@@ -1158,88 +1165,7 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildUpcomingPaymentsSection(KosOverviewLoaded s, TextTheme textTheme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-          leading: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.calendar_today_rounded, color: Color(0xFF2563EB), size: 16),
-          ),
-          title: const Text('Pembayaran Mendatang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A))),
-          subtitle: Text('${s.upcomingPayments?.length ?? 0} penyewa segera jatuh tempo',
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
-          children: [
-            const Divider(height: 1, color: Color(0xFFF1F5F9), indent: 16, endIndent: 16),
-            ...(s.upcomingPayments ?? []).map((p) => _buildUpcomingPaymentItem(p)),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUpcomingPaymentItem(dynamic payment) {
-    final daysLeft = payment.daysUntilDue ?? 0;
-    final isUrgent = daysLeft <= 3;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isUrgent ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isUrgent ? const Color(0xFFFFEDD5) : const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 15,
-              backgroundColor: const Color(0xFF6D5EF6),
-              child: Text(
-                payment.tenantName?.isNotEmpty == true ? payment.tenantName[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(payment.tenantName ?? 'Penyewa', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
-                  Text('Kamar ${payment.room ?? '-'}', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11)),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isUrgent ? const Color(0xFFEA580C).withOpacity(0.1) : const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '$daysLeft hari lagi',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: isUrgent ? const Color(0xFFEA580C) : const Color(0xFF475569)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  
 
   Widget _buildOverdueSection(KosOverviewLoaded s, TextTheme textTheme) {
     return Container(
@@ -1321,8 +1247,8 @@ class _DashboardPageState extends State<DashboardPage>
       ),
     );
     if (confirmed == true && mounted) {
-      context.read<KosOverviewCubit>().settleOverdue(o);
-    }
+      _overviewCubit.settleOverdue(o);
+}
   }
 
   Widget _buildQuickActionsSection() {
@@ -1342,7 +1268,11 @@ class _DashboardPageState extends State<DashboardPage>
         'label': 'Lihat\nTransaksi',
         'color': const Color(0xFFEF4444),
         'bgColor': const Color(0xFFFEF2F2),
-        'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinancePage())),
+        'onTap': () => Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const FinancePage()))
+            .then((_) {
+              TransactionRefreshNotifier.instance.notifyTransactionsChanged();
+            }),
       },
       {
         'icon': Icons.bar_chart_rounded,
@@ -1401,36 +1331,60 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildPaymentHistorySection(KosOverviewLoaded s, TextTheme textTheme) {
+Widget _buildActivityFeedSection(KosOverviewLoaded s, TextTheme textTheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeader(
-          title: 'Riwayat Transaksi',
-          subtitle: 'Terbaru',
+          title: 'Aktivitas Terkini',
+          subtitle: '5 aktivitas terbaru',
           rightText: 'Lihat Semua',
-          onRightTap: () {},
+          onRightTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FinancePage()),
+            );
+          },
         ),
         const SizedBox(height: 12),
-        if (s.latestPayments.isEmpty)
+        if (s.recentActivities.isEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 32),
             alignment: Alignment.center,
-            child: const Text('Belum ada transaksi tercatat', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.history_rounded,
+                  size: 40,
+                  color: Colors.grey.shade300,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Belum ada aktivitas',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           )
         else
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: s.latestPayments.length,
+            itemCount: s.recentActivities.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => PaymentHistoryItem(payment: s.latestPayments[index]),
+            itemBuilder: (context, index) {
+              final activity = s.recentActivities[index];
+              return _ActivityCard(activity: activity);
+            },
           ),
       ],
     );
   }
-
   Widget _buildStatRow(String label, String value, IconData icon, Color color) {
     return Row(
       children: [
@@ -1466,7 +1420,7 @@ class _DashboardPageState extends State<DashboardPage>
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
-        mainAxisSize: MainAxisSize.min, 
+        mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.error_outline_rounded, size: 44, color: Color(0xFFEF4444)),
           const SizedBox(height: 12),
@@ -1477,12 +1431,150 @@ class _DashboardPageState extends State<DashboardPage>
               final kosId = _activeKos?['id']?.toString();
               if (kosId != null) _overviewCubit.load(kosId: kosId);
             },
-            child: const Text('Coba Lagi'), 
+            child: const Text('Coba Lagi'),
           ),
         ],
       ),
     ),
   );
 }
-
 }
+
+Widget _buildFinancialChart(KosOverviewLoaded s) {
+  final spots = s.chartSpots; // sudah diolah per minggu
+
+  return Container(
+    // ... decorasi
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Bulan ini',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+            ),
+            // Hapus label "+12.5%" karena tidak relevan
+          ],
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 150,
+          child: LineChart(
+            LineChartData(
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => const Color(0xFF0F172A),
+                  tooltipRoundedRadius: 12,
+                  getTooltipItems: (spots) => spots
+                      .map((s) => LineTooltipItem(
+                            'Minggu ${s.x.toInt() + 1}\nRp ${s.y.toStringAsFixed(0)}',
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          ))
+                      .toList(),
+                ),
+              ),
+              gridData: const FlGridData(show: false),
+              titlesData: const FlTitlesData(show: false),
+              borderData: FlBorderData(show: false),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.35,
+                  gradient: const LinearGradient(colors: [Color(0xFF6D5EF6), Color(0xFF48B3FF)]),
+                  barWidth: 4,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF6D5EF6).withOpacity(0.1),
+                        const Color(0xFF6D5EF6).withOpacity(0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ActivityCard extends StatelessWidget {
+  final ActivityEntity activity;
+  const _ActivityCard({required this.activity, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: activity.bgColor, 
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              activity.icon, 
+              color: activity.iconColor, 
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                if (activity.subtitle != null)
+                  Text(
+                    activity.subtitle!,
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (activity.amount != null)
+                Text(
+                  activity.amountFormatted!,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: activity.isPositive ? Colors.green : Colors.red,
+                  ),
+                ),
+              Text(
+                activity.formattedTime,
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+

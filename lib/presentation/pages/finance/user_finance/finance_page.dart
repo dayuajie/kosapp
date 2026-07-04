@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '/../data/repositories/supabase_finance_repository.dart';
+import '/../../core/transaction_refresh_notifier.dart';
 
 // ═════════════════════════════════════════════════════════════════════════
 //  DESIGN TOKENS
@@ -152,29 +153,40 @@ class _financePageState extends State<FinancePage>
   }
  
   Future<void> _addEntry(_NewTransactionInput input) async {
-    final kosId = _resolvedKosId;
-    if (kosId == null || kosId.isEmpty) {
-      _showSnack('Belum ada kos aktif.', isSuccess: false);
-      return;
-    }
- 
-    try {
-      final created = await _repo.createTransaction(
-        kosId: kosId,
-        date: input.date,
-        description: input.description,
-        amount: input.amount,
-        type: input.type,
-        category: input.category,
-      );
-      if (!mounted) return;
-      setState(() => _entries.insert(0, created));
-      _showSnack('Transaksi berhasil dicatat', isSuccess: true);
-    } catch (e) {
-      if (!mounted) return;
-      _showSnack('Gagal menyimpan transaksi: $e', isSuccess: false);
-    }
+  final kosId = _resolvedKosId;
+  if (kosId == null || kosId.isEmpty) {
+    _showSnack('Belum ada kos aktif.', isSuccess: false);
+    return;
   }
+
+  try {
+    final created = await _repo.createTransaction(
+      kosId: kosId,
+      date: input.date,
+      description: input.description,
+      amount: input.amount,
+      type: input.type,
+      category: input.category,
+    );
+    
+    if (!mounted) return;
+    TransactionRefreshNotifier.instance.notifyTransactionsChanged();
+    
+    // Update state lokal
+    setState(() => _entries.insert(0, created));
+    
+    _showSnack('Transaksi berhasil dicatat', isSuccess: true);
+    
+    // Tutup form dan kembali ke tab Transaksi (index 0)
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    
+  } catch (e) {
+    if (!mounted) return;
+    _showSnack('Gagal menyimpan transaksi: $e', isSuccess: false);
+  }
+}
  
   Future<void> _deleteEntry(TransactionEntity entry) async {
     
@@ -356,10 +368,7 @@ class _financePageState extends State<FinancePage>
   }
 }
  
-// ═════════════════════════════════════════════════════════════════════════
-//  TAB 1 — TRANSAKSI (list, filter periode, hapus)
-// ═════════════════════════════════════════════════════════════════════════
-enum _Timeframe { weekly, monthly, yearly, all }
+
  
 class _TransaksiTab extends StatefulWidget {
   final List<TransactionEntity> entries;
@@ -374,7 +383,7 @@ class _TransaksiTab extends StatefulWidget {
 class _TransaksiTabState extends State<_TransaksiTab>
     with SingleTickerProviderStateMixin {
   late TabController _typeTab;
-  _Timeframe _timeframe = _Timeframe.monthly;
+  
  
   @override
   void initState() {
@@ -388,48 +397,25 @@ class _TransaksiTabState extends State<_TransaksiTab>
     super.dispose();
   }
  
-  DateTime? get _from {
-    final now = DateTime.now();
-    switch (_timeframe) {
-      case _Timeframe.weekly:
-        return now.subtract(const Duration(days: 7));
-      case _Timeframe.monthly:
-        return DateTime(now.year, now.month - 1, now.day);
-      case _Timeframe.yearly:
-        return DateTime(now.year - 1, now.month, now.day);
-      case _Timeframe.all:
-        return null;
-    }
-  }
+  
  
   List<TransactionEntity> _filtered(TransactionType type) {
-    final from = _from;
-    return widget.entries.where((e) {
-      if (e.type != type) return false;
-      if (from != null && e.date.isBefore(from)) return false;
-      return true;
-    }).toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
-  }
+  final now = DateTime.now();
+  final firstDayOfMonth = DateTime(now.year, now.month, 1);
+  return widget.entries.where((e) {
+    if (e.type != type) return false;
+    if (e.date.isBefore(firstDayOfMonth)) return false;
+    return true;
+  }).toList()
+    ..sort((a, b) => b.date.compareTo(a.date));
+}
  
   double get _totalIncome =>
       _filtered(TransactionType.income).fold(0.0, (s, e) => s + e.amount);
   double get _totalExpense =>
       _filtered(TransactionType.expense).fold(0.0, (s, e) => s + e.amount);
  
-  String get _timeframeLabel {
-    switch (_timeframe) {
-      case _Timeframe.weekly:
-        return 'Minggu Ini';
-      case _Timeframe.monthly:
-        return 'Bulan Ini';
-      case _Timeframe.yearly:
-        return 'Tahun Ini';
-      case _Timeframe.all:
-        return 'Semua Waktu';
-    }
-  }
- 
+
   void _confirmDelete(TransactionEntity e) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -489,7 +475,7 @@ class _TransaksiTabState extends State<_TransaksiTab>
                       children: [
                         Expanded(
                           child: Text(
-                            'Saldo Bersih ($_timeframeLabel)',
+                            'Saldo Bersih (Bulan ini)',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w500, fontSize: 13),
@@ -518,37 +504,6 @@ class _TransaksiTabState extends State<_TransaksiTab>
                       Expanded(child: _BalanceStat(icon: Icons.arrow_upward_rounded, label: 'Pengeluaran', value: _currencyFmt.format(_totalExpense), color: _T.danger)),
                     ]),
                   ],
-                ),
-              ),
-              const SizedBox(height: 14),
- 
-              // Timeframe chips
-              SizedBox(
-                height: 36,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  children: _Timeframe.values.map((tf) {
-                    final label = switch (tf) {
-                      _Timeframe.weekly => 'Mingguan',
-                      _Timeframe.monthly => 'Bulanan',
-                      _Timeframe.yearly => 'Tahunan',
-                      _Timeframe.all => 'Semua',
-                    };
-                    final selected = _timeframe == tf;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? Colors.white : _T.textSub)),
-                        selected: selected,
-                        onSelected: (_) => setState(() => _timeframe = tf),
-                        selectedColor: _T.primary,
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: selected ? _T.primary : _T.border)),
-                        showCheckmark: false,
-                      ),
-                    );
-                  }).toList(),
                 ),
               ),
               const SizedBox(height: 14),
@@ -760,26 +715,27 @@ class _TransactionFormPageState extends State<_TransactionFormPage> {
   }
  
   void _submit() {
-    final title = _titleCtrl.text.trim();
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '').replaceAll('.', '')) ?? 0.0;
- 
-    if (title.isEmpty) {
-      _snack('Judul transaksi tidak boleh kosong');
-      return;
-    }
-    if (amount <= 0) {
-      _snack('Masukkan jumlah nominal yang valid');
-      return;
-    }
- 
-    Navigator.of(context).pop(_NewTransactionInput(
-      date: _pickedDate,
-      description: title,
-      amount: amount,
-      type: _isIncome ? TransactionType.income : TransactionType.expense,
-      category: _categories[_categoryIndex].label,
-    ));
+  final title = _titleCtrl.text.trim();
+  final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '').replaceAll('.', '')) ?? 0.0;
+
+  if (title.isEmpty) {
+    _snack('Judul transaksi tidak boleh kosong');
+    return;
   }
+  if (amount <= 0) {
+    _snack('Masukkan jumlah nominal yang valid');
+    return;
+  }
+
+  // Return input untuk diproses oleh FinancePage
+  Navigator.of(context).pop(_NewTransactionInput(
+    date: _pickedDate,
+    description: title,
+    amount: amount,
+    type: _isIncome ? TransactionType.income : TransactionType.expense,
+    category: _categories[_categoryIndex].label,
+  ));
+}
  
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
