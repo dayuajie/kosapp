@@ -8,6 +8,7 @@ import 'supabase_finance_repository.dart';
 import 'supabase_occupancy_repository.dart';
 import 'supabase_room_repository.dart';
 import 'supabase_tenant_repository.dart';
+import '../../domain/entities/activity_entity.dart';
 
 class SupabaseKosOverviewRepository implements KosOverviewRepository {
   final OccupancyRepository _occupancyRepo;
@@ -100,14 +101,90 @@ class SupabaseKosOverviewRepository implements KosOverviewRepository {
 
     final unpaidAmount = overdues.fold<num>(0, (s, o) => s + o.amount);
 
-    return KosOverviewEntity(
-      occupiedRooms: occupiedRooms,
-      availableRooms: availableRooms,
-      income: income,
-      expense: expense,
-      unpaidAmount: unpaidAmount,
-      latestPayments: latestPayments,
-      overdues: overdues,
-    );
+    final recentActivities = await _fetchRecentActivities(
+    kosId: kosId,
+    transactions: transactions,
+    rooms: rooms,
+    tenants: tenants,
+    occupiedOccupancies: occupiedOccupancies,
+  );
+
+  return KosOverviewEntity(
+    occupiedRooms: occupiedRooms,
+    availableRooms: availableRooms,
+    income: income,
+    expense: expense,
+    unpaidAmount: unpaidAmount,
+    latestPayments: latestPayments,
+    overdues: overdues,
+    recentActivities: recentActivities, // BARU
+  );
+}
+
+// BARU: Method untuk menggabungkan aktivitas dari berbagai sumber
+Future<List<ActivityEntity>> _fetchRecentActivities({
+  required String kosId,
+  required List transactions,
+  required List rooms,
+  required List tenants,
+  required List occupiedOccupancies,
+}) async {
+  final activities = <ActivityEntity>[];
+  final roomNameById = {
+    for (final r in rooms) r.id: r.name,
+  };
+  final tenantNameById = {
+    for (final t in tenants) t.id: t.fullName,
+  };
+  // 1. Transaksi → Activity
+  for (final t in transactions.take(10)) {
+    final isIncome = t.type.toString().contains('income');
+    activities.add(ActivityEntity(
+      id: 'tx_${t.id}',
+      type: isIncome ? ActivityType.transactionIncome : ActivityType.transactionExpense,
+      title: t.description as String,
+      subtitle: isIncome ? 'Pemasukan' : 'Pengeluaran',
+      timestamp: t.date as DateTime,
+      amount: t.amount as num,
+      isPositive: isIncome,
+    ));
   }
+
+  // 2. Tenant baru (30 hari terakhir)
+  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+  for (final t in tenants.where((t) {
+    final createdAt = t.createdAt;
+    return createdAt != null && createdAt.isAfter(thirtyDaysAgo);
+  }).take(5)) {
+    activities.add(ActivityEntity(
+      id: 'tenant_${t.id}',
+      type: ActivityType.tenantAdded,
+      title: 'Penghuni baru: ${t.fullName}',
+      subtitle: 'Telah terdaftar',
+      timestamp: t.createdAt!,
+    ));
+  }
+  for (final occ in occupiedOccupancies.where((o) {
+    final start = o.startDate;
+    return start != null && start.isAfter(thirtyDaysAgo);
+  }).take(5)) {
+    final tenantName = tenantNameById[occ.tenantId] ?? 'Penghuni';
+    final roomName = roomNameById[occ.roomId] ?? 'Kamar';
+    activities.add(ActivityEntity(
+      id: 'occ_${occ.id}',
+      type: ActivityType.occupancyCreated,
+      title: '$tenantName check-in',
+      subtitle: roomName,
+      timestamp: occ.startDate!,
+    ));
+  }
+
+  // Urutkan: terbaru di atas
+  activities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+  // Ambil 5 teratas
+  return activities.take(5).toList();
+}
+
+  
 }

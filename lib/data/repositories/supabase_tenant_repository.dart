@@ -333,12 +333,12 @@ class SupabaseTenantRepository {
     return '$name/$phone';
   })();
 
-  final room = r['room'] ?? r['room_name'] ?? r['room_id'];
-final moveIn = r['move_in_date'] ?? r['start_date'];
-final rentPrice = r['rent_price'] ?? r['price'] ?? r['monthly_price'];
-final paymentStatus = r['payment_status'] ?? r['status'];
-final plannedEnd = r['end_date'];      // tanggal rencana keluar sewa (dari occupancy)
-final actualCheckOut = r['check_out']; // checkout aktual (dari tenants.check_out)
+    final room = r['room'] ?? r['room_name'] ?? r['room_id'];
+    final moveIn = r['move_in_date'] ?? r['start_date'];
+    final rentPrice = r['rent_price'] ?? r['price'] ?? r['monthly_price'];
+    final paymentStatus = r['payment_status'] ?? r['status'];
+    final plannedEnd =  r['end_date']; 
+    final actualCheckOut = r['check_out']; 
 
 DateTime? parsedMoveIn;
 if (moveIn is String) {
@@ -365,6 +365,13 @@ int? parsedRentPrice;
 if (rentPrice != null) {
   parsedRentPrice = int.tryParse(rentPrice.toString());
 }
+DateTime? parsedCreatedAt;
+  final createdAtRaw = r['created_at'];
+  if (createdAtRaw is String) {
+    parsedCreatedAt = DateTime.tryParse(createdAtRaw);
+  } else if (createdAtRaw is DateTime) {
+    parsedCreatedAt = createdAtRaw;
+  }
 
 return TenantEntity(
   id: r['id'].toString(),
