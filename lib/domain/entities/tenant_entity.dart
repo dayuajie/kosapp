@@ -3,6 +3,7 @@ class TenantEntity {
   final String fullName;
   final String? phone;
   final String? room;
+  final String? roomId;
   final DateTime? moveInDate;
   final DateTime? endDate;        
   final int? rentPrice;
@@ -14,6 +15,7 @@ class TenantEntity {
   final String? tenantsUrl;
   final String? idCardUrl;
   final String? notes;
+  final String? occupancyId;
   final DateTime? checkOutDate; 
   final DateTime? createdAt;   
 
@@ -22,6 +24,7 @@ class TenantEntity {
     required this.fullName,
     this.phone,
     this.room,
+    this.roomId,
     this.moveInDate,
     this.endDate,
     this.rentPrice,
@@ -35,6 +38,7 @@ class TenantEntity {
     this.notes,
     this.checkOutDate,
     this.createdAt,
+    this.occupancyId,
   });
 
   String get initials {
