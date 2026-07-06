@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/repositories/supabase_kos_repository.dart';
 import '../../data/repositories/supabase_users_account_repository.dart';
 import '../../data/repositories/registration_repository.dart';
+import '../../core/kos_refresh_notifier.dart';
+
 
 class _T {
   
@@ -160,8 +162,6 @@ class _EditAccountPageState extends State<EditAccountPage>
         _bankInfoList = list;
       });
     } catch (e) {
-      // ignore: avoid_print
-      print('[EditAccountPage] _loadBankInfo failed: $e');
       if (!mounted) return;
       setState(() {
         _bankInfoList = const [];
@@ -175,9 +175,6 @@ class _EditAccountPageState extends State<EditAccountPage>
   Future<void> _loadUserAndAccountStatus() async {
     final repo = SupabaseUsersAccountRepository();
     final me = await repo.fetchMeWithStatus();
-
-    print('[EditAccountPage] fetchMeWithStatus me=$me');
-
     if (me == null) return;
 
     final user = me['user'] as Map<String, dynamic>?;
@@ -215,7 +212,6 @@ class _EditAccountPageState extends State<EditAccountPage>
       if (!mounted) return;
       _showSnack('Profil berhasil diperbarui', isSuccess: true);
     } catch (e) {
-      print('[EditAccountPage] _saveProfile failed: $e');
       if (!mounted) return;
       _showSnack('Gagal memperbarui profil: $e', isSuccess: false);
     } finally {
@@ -239,10 +235,9 @@ class _EditAccountPageState extends State<EditAccountPage>
     });
 
     try {
-      print('loadKos ownerId=$ownerId');
+     
       final list = await _kosRepo.fetchKosByOwner(ownerId);
-      // ignore: avoid_print
-      print('loadKos result count=${list.length}');
+
 
       if (!mounted) return;
       setState(() {
@@ -305,8 +300,7 @@ class _EditAccountPageState extends State<EditAccountPage>
       // Supabase Flutter mengizinkan update user metadata via auth.updateUser.
       final supabase = Supabase.instance.client;
       await supabase.auth.updateUser(UserAttributes(data: {'kos_id': kosId}));
-
-      // Reload kos supaya tampil di Manajemen Properti.
+      KosRefreshNotifier.instance.notifyKosChanged();
       await _loadKos();
 
       if (!mounted) return;
@@ -319,10 +313,7 @@ class _EditAccountPageState extends State<EditAccountPage>
 
       _showSnack('Kos baru berhasil didaftarkan', isSuccess: true);
     } catch (e) {
-      // Tambahkan detail error supaya tahu kenapa insert gagal.
-      // (Output akan muncul di console Flutter)
-      // ignore: avoid_print
-      print('createKos failed: $e');
+     
 
       if (!mounted) return;
       _showSnack('Gagal mendaftarkan kos', isSuccess: false);
@@ -1306,8 +1297,6 @@ class _EditAccountPageState extends State<EditAccountPage>
       await _loadBankInfo();
       _showSnack('Rekening berhasil dihapus', isSuccess: true);
     } catch (e) {
-      // ignore: avoid_print
-      print('[EditAccountPage] delete bank_info failed: $e');
       if (!mounted) return;
       _showSnack('Gagal menghapus rekening', isSuccess: false);
     } finally {

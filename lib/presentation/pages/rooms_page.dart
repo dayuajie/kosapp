@@ -681,7 +681,7 @@ class _RoomCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           child: firstObjectName != null
                               ? FutureBuilder<String>(
-                                  future: B2SignedUrlService().getSignedDownloadUrl(
+                                  future: B2SignedUrlService.instance.getSignedDownloadUrl(
                                     bucketName: B2Config.bucketRoomPhoto,
                                     objectName: firstObjectName,
                                   ),

@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -7,7 +7,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '/../data/repositories/supabase_finance_repository.dart';
 import '/../../core/transaction_refresh_notifier.dart';
-
 // ═════════════════════════════════════════════════════════════════════════
 //  DESIGN TOKENS
 // ═════════════════════════════════════════════════════════════════════════
@@ -716,7 +715,8 @@ class _TransactionFormPageState extends State<_TransactionFormPage> {
  
   void _submit() {
   final title = _titleCtrl.text.trim();
-  final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '').replaceAll('.', '')) ?? 0.0;
+  final cleaned = _amountCtrl.text.replaceAll('.', '').replaceAll(',', '');
+  final amount = double.tryParse(cleaned) ?? 0.0;
 
   if (title.isEmpty) {
     _snack('Judul transaksi tidak boleh kosong');
@@ -813,9 +813,29 @@ class _TransactionFormPageState extends State<_TransactionFormPage> {
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), boxShadow: _T.cardShadow),
                 child: Column(
                   children: [
-                    TextField(controller: _titleCtrl, decoration: _dec('Deskripsi Ringkas', hint: _isIncome ? 'Misal: Pembayaran Kamar A-10' : 'Misal: Perbaikan pipa air', icon: Icons.edit_note_rounded)),
+                    TextField(
+                      controller: _titleCtrl,
+                      decoration: _dec(
+                        'Deskripsi Ringkas',
+                        hint: _isIncome
+                            ? 'Misal: Pembayaran Kamar A-10'
+                            : 'Misal: Perbaikan pipa air',
+                        icon: Icons.edit_note_rounded,
+                      ),
+                    ),
                     const SizedBox(height: 14),
-                    TextField(controller: _amountCtrl, keyboardType: TextInputType.number, decoration: _dec('Nominal Transaksi', hint: '0', prefixText: 'Rp ', icon: Icons.payments_rounded)),
+                    TextField(
+                      controller: _amountCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+],
+                      decoration: _dec(
+                        'Nominal Transaksi',
+                        hint: '0',
+                        prefixText: 'Rp ',
+                        icon: Icons.payments_rounded,
+                      ),
+                    ),
                   ],
                 ),
               ),

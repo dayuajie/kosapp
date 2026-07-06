@@ -5,17 +5,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:kos_app/data/repositories/supabase_kos_repository.dart';
 import 'package:kos_app/data/repositories/supabase_tenant_repository.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../core/tenant_refresh_notifier.dart';
 import 'assign_room_page.dart';
 
 class TenantFormPage extends StatefulWidget {
   final String? tenantId;
   final String? initialName;
 
-  const TenantFormPage({
-    super.key,
-    this.tenantId,
-    this.initialName,
-  });
+  const TenantFormPage({super.key, this.tenantId, this.initialName});
 
   @override
   State<TenantFormPage> createState() => _TenantFormPageState();
@@ -85,9 +82,9 @@ class _TenantFormPageState extends State<TenantFormPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memuat data: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat data: $e')));
     } finally {
       if (mounted) setState(() => _isLoadingData = false);
     }
@@ -105,23 +102,24 @@ class _TenantFormPageState extends State<TenantFormPage> {
           ? 'Izin tidak tersedia. Silakan aktifkan izin di Settings.'
           : 'Izin ${permission.toString()} ditolak';
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       return false;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal request izin: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gagal request izin: $e')));
       }
       return false;
     }
   }
 
   Future<void> _pickImage(ImageSource source, bool isProfile) async {
-    final permission =
-        source == ImageSource.camera ? Permission.camera : Permission.storage;
+    final permission = source == ImageSource.camera
+        ? Permission.camera
+        : Permission.storage;
 
     final ok = await _ensurePermission(permission);
     if (!ok) return;
@@ -143,9 +141,9 @@ class _TenantFormPageState extends State<TenantFormPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memproses foto: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memproses foto: $e')));
     }
   }
 
@@ -186,7 +184,9 @@ class _TenantFormPageState extends State<TenantFormPage> {
 
     try {
       final isEdit = widget.tenantId != null && widget.tenantId!.isNotEmpty;
-      isEdit ? await _updateTenant(name, phone) : await _createTenant(name, phone);
+      isEdit
+          ? await _updateTenant(name, phone)
+          : await _createTenant(name, phone);
     } catch (e) {
       if (!mounted) return;
       _showSnack('Gagal menyimpan data: $e');
@@ -197,6 +197,8 @@ class _TenantFormPageState extends State<TenantFormPage> {
 
   Future<void> _updateTenant(String name, String phone) async {
     final tenantId = widget.tenantId!;
+
+    // Update basic fields
     await _tenantRepo.updateTenantBasic(
       tenantId: tenantId,
       fullName: name,
@@ -207,31 +209,43 @@ class _TenantFormPageState extends State<TenantFormPage> {
       emergencyPhone: _valueOrNull(_emergencyPhoneCtrl),
     );
 
-    String? photoUrl = _profilePhotoUrl;
-    String? idCardUrl = _idCardPhotoUrl;
+    // Handle photo updates
+    String? photoUrl;
+    bool clearTenantsUrl = false;
 
     if (_profilePhoto != null) {
+      // Ada foto baru diupload
       photoUrl = await _tenantRepo.uploadTenantPhoto(
         tenantId: tenantId,
         file: _profilePhoto!,
       );
-    } else {
-      photoUrl = null;
+    } else if (_profilePhotoUrl != null &&
+        _profilePhotoUrl!.trim().isNotEmpty) {
+      // Sebelumnya ada foto, tapi sekarang tidak ada foto baru dan tidak ada foto lama?
+      // Artinya user ingin menghapus foto lama.
+      // Kita set clear flag ke true dan photoUrl tetap null.
+      clearTenantsUrl = true;
     }
+    // Jika _profilePhoto == null dan _profilePhotoUrl == null, tidak ada perubahan.
+
+    String? idCardUrl;
+    bool clearIdCardUrl = false;
 
     if (_idCardPhoto != null) {
       idCardUrl = await _tenantRepo.uploadIdCardPhoto(
         tenantId: tenantId,
         file: _idCardPhoto!,
       );
-    } else {
-      idCardUrl = null;
+    } else if (_idCardPhotoUrl != null && _idCardPhotoUrl!.trim().isNotEmpty) {
+      clearIdCardUrl = true;
     }
 
     await _tenantRepo.updateTenantPhotos(
       tenantId: tenantId,
       tenantsUrl: photoUrl,
+      clearTenantsUrl: clearTenantsUrl,
       idCardUrl: idCardUrl,
+      clearIdCardUrl: clearIdCardUrl,
     );
 
     if (!mounted) return;
@@ -259,125 +273,152 @@ class _TenantFormPageState extends State<TenantFormPage> {
     String? idCardUrl;
 
     if (_profilePhoto != null) {
-      photoUrl = await _tenantRepo.uploadTenantPhoto(tenantId: tenantId, file: _profilePhoto!);
+      photoUrl = await _tenantRepo.uploadTenantPhoto(
+        tenantId: tenantId,
+        file: _profilePhoto!,
+      );
     }
     if (_idCardPhoto != null) {
-      idCardUrl = await _tenantRepo.uploadIdCardPhoto(tenantId: tenantId, file: _idCardPhoto!);
+      idCardUrl = await _tenantRepo.uploadIdCardPhoto(
+        tenantId: tenantId,
+        file: _idCardPhoto!,
+      );
     }
 
-    await _tenantRepo.updateTenantPhotos(tenantId: tenantId, tenantsUrl: photoUrl, idCardUrl: idCardUrl);
+    await _tenantRepo.updateTenantPhotos(
+      tenantId: tenantId,
+      tenantsUrl: photoUrl,
+      idCardUrl: idCardUrl,
+    );
 
     if (!mounted) return;
     _showSnack('Penghuni "$name" berhasil didaftarkan');
+    TenantRefreshNotifier.instance.notifyTenantsChanged();
 
     // Tanya apakah langsung mau assign kamar
     final assignNow = await showDialog<bool>(
-  context: context,
-  barrierDismissible: false, // Menghindari dialog tertutup tidak sengaja jika diklik luarnya
-  builder: (ctx) => Dialog(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    elevation: 0,
-    backgroundColor: Colors.transparent,
-    child: Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 20.0,
-            offset: Offset(0.0, 10.0),
+      context: context,
+      barrierDismissible:
+          false, // Menghindari dialog tertutup tidak sengaja jika diklik luarnya
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.rectangle,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 20.0,
+                offset: Offset(0.0, 10.0),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min, // Agar tinggi dialog menyesuaikan konten
-        children: [
-          // 1. Bagian Ikon/Visual di Atas
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF6D5EF6).withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_circle_outline_rounded,
-              size: 54,
-              color: Color(0xFF6D5EF6),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // 2. Judul
-          const Text(
-            'Berhasil Didaftarkan!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // 3. Deskripsi / Pertanyaan
-          RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: const TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
-              children: [
-                const TextSpan(text: 'Penghuni '),
-                TextSpan(
-                  text: '"$name" ',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min, // Agar tinggi dialog menyesuaikan konten
+            children: [
+              // 1. Bagian Ikon/Visual di Atas
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6D5EF6).withOpacity(0.1),
+                  shape: BoxShape.circle,
                 ),
-                const TextSpan(text: 'sudah terdata.\nApakah Anda ingin langsung menempatkannya ke kamar?'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
+                child: const Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 54,
+                  color: Color(0xFF6D5EF6),
+                ),
+              ),
+              const SizedBox(height: 20),
 
-          // 4. Tombol Aksi (Dibuat vertikal agar lebih leluasa dan modern)
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6D5EF6),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
+              // 2. Judul
+              const Text(
+                'Berhasil Didaftarkan!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text(
-                'Ya, Tempatkan Kamar',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              const SizedBox(height: 12),
+
+              // 3. Deskripsi / Pertanyaan
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                    height: 1.4,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Penghuni '),
+                    TextSpan(
+                      text: '"$name" ',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const TextSpan(
+                      text:
+                          'sudah terdata.\nApakah Anda ingin langsung menempatkannya ke kamar?',
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 28),
+
+              // 4. Tombol Aksi (Dibuat vertikal agar lebih leluasa dan modern)
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6D5EF6),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text(
+                    'Ya, Tempatkan Kamar',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[600],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text(
+                    'Nanti Saja',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[600],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text(
-                'Nanti Saja',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
 
     if (!mounted) return;
 
@@ -389,7 +430,7 @@ class _TenantFormPageState extends State<TenantFormPage> {
 
     if (!mounted) return;
     Navigator.of(context).pop(true);
-}
+  }
 
   // ── HELPERS ────────────────────────────────────────────────────────────────
   String? _valueOrNull(TextEditingController ctrl) {
@@ -411,7 +452,9 @@ class _TenantFormPageState extends State<TenantFormPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        final hasCurrent = isProfile ? _profilePhoto != null : _idCardPhoto != null;
+        final hasCurrent = isProfile
+            ? _profilePhoto != null
+            : _idCardPhoto != null;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -429,11 +472,17 @@ class _TenantFormPageState extends State<TenantFormPage> {
                 const SizedBox(height: 16),
                 Text(
                   isProfile ? 'Pilih Foto Penghuni' : 'Pilih Foto KTP / ID',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ListTile(
-                  leading: _sheetIcon(Icons.camera_alt_rounded, const Color(0xFF6D5EF6)),
+                  leading: _sheetIcon(
+                    Icons.camera_alt_rounded,
+                    const Color(0xFF6D5EF6),
+                  ),
                   title: const Text(
                     'Ambil dari Kamera',
                     style: TextStyle(fontWeight: FontWeight.w600),
@@ -444,7 +493,10 @@ class _TenantFormPageState extends State<TenantFormPage> {
                   },
                 ),
                 ListTile(
-                  leading: _sheetIcon(Icons.photo_library_rounded, const Color(0xFF22C55E)),
+                  leading: _sheetIcon(
+                    Icons.photo_library_rounded,
+                    const Color(0xFF22C55E),
+                  ),
                   title: const Text(
                     'Pilih dari Galeri',
                     style: TextStyle(fontWeight: FontWeight.w600),
@@ -456,7 +508,10 @@ class _TenantFormPageState extends State<TenantFormPage> {
                 ),
                 if (hasCurrent)
                   ListTile(
-                    leading: _sheetIcon(Icons.delete_outline_rounded, Colors.redAccent),
+                    leading: _sheetIcon(
+                      Icons.delete_outline_rounded,
+                      Colors.redAccent,
+                    ),
                     title: const Text(
                       'Hapus Foto',
                       style: TextStyle(
@@ -496,7 +551,11 @@ class _TenantFormPageState extends State<TenantFormPage> {
   }
 
   // ── REUSABLE UI BUILDERS ───────────────────────────────────────────────────
-  InputDecoration _inputDecoration(String label, {IconData? icon, String? hint}) {
+  InputDecoration _inputDecoration(
+    String label, {
+    IconData? icon,
+    String? hint,
+  }) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
@@ -521,10 +580,7 @@ class _TenantFormPageState extends State<TenantFormPage> {
     );
   }
 
-  Widget _sectionCard({
-    required String title,
-    required List<Widget> children,
-  }) {
+  Widget _sectionCard({required String title, required List<Widget> children}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -569,7 +625,8 @@ class _TenantFormPageState extends State<TenantFormPage> {
         height: 110,
         fit: BoxFit.cover,
       );
-    } else if (_profilePhotoUrl != null && _profilePhotoUrl!.trim().isNotEmpty) {
+    } else if (_profilePhotoUrl != null &&
+        _profilePhotoUrl!.trim().isNotEmpty) {
       photoContent = CachedNetworkImage(
         imageUrl: _profilePhotoUrl!,
         width: 110,
@@ -579,12 +636,18 @@ class _TenantFormPageState extends State<TenantFormPage> {
         memCacheHeight: 330,
         placeholder: (_, __) =>
             const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        errorWidget: (_, __, ___) =>
-            const Icon(Icons.person_rounded, size: 54, color: Color(0xFFBFC3D9)),
+        errorWidget: (_, __, ___) => const Icon(
+          Icons.person_rounded,
+          size: 54,
+          color: Color(0xFFBFC3D9),
+        ),
       );
     } else {
-      photoContent =
-          const Icon(Icons.person_rounded, size: 54, color: Color(0xFFBFC3D9));
+      photoContent = const Icon(
+        Icons.person_rounded,
+        size: 54,
+        color: Color(0xFFBFC3D9),
+      );
     }
 
     return Center(
@@ -681,7 +744,8 @@ class _TenantFormPageState extends State<TenantFormPage> {
           border: Border.all(color: Colors.black.withOpacity(0.05)),
         ),
         clipBehavior: Clip.antiAlias,
-        child: overlay ??
+        child:
+            overlay ??
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -717,15 +781,18 @@ class _TenantFormPageState extends State<TenantFormPage> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
           onPressed: () => Navigator.of(context).pop(false),
         ),
         title: Text(
           isEditMode ? 'Ubah Data Penghuni' : 'Tambah Penghuni',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: Colors.black87,
-              ),
+            fontWeight: FontWeight.w900,
+            color: Colors.black87,
+          ),
         ),
       ),
       body: _isLoadingData
@@ -832,13 +899,16 @@ class _TenantFormPageState extends State<TenantFormPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.check_circle_outline_rounded, size: 20),
+                            : const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 20,
+                              ),
                         label: Text(
                           _isSubmitting
                               ? 'Memproses...'
                               : isEditMode
-                                  ? 'Update Data Penghuni'
-                                  : 'Daftarkan Penghuni',
+                              ? 'Update Data Penghuni'
+                              : 'Daftarkan Penghuni',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,

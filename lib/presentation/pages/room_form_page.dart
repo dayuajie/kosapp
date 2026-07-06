@@ -189,7 +189,7 @@ class _RoomFormPageState extends State<RoomFormPage> {
   }
 
   Future<String> _objectNameToSignedUrl(String objectName) {
-    return B2SignedUrlService().getSignedDownloadUrl(
+    return B2SignedUrlService.instance.getSignedDownloadUrl(
       bucketName: B2Config.bucketRoomPhoto,
       objectName: objectName,
       validFor: const Duration(minutes: 10),
@@ -448,8 +448,6 @@ class _RoomFormPageState extends State<RoomFormPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      // ignore: avoid_print
-      print('[RoomFormPage] submit isEdit=$isEdit name=$name capacity=$capacity kosId=$_kosId selectedPhotos=${_selectedPhotoFiles.length}');
       final roomId = isEdit ? widget.initial!.id : null;
 
 

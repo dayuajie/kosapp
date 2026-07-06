@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import '../main_bottom_nav_shell.dart';
 import '../../../data/repositories/registration_repository.dart';
 
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  DESIGN TOKENS
-// ═════════════════════════════════════════════════════════════════════════════
+
 class _T {
   static const primary    = Color(0xFF6D5EF6);
   static const surface    = Color(0xFFFFFFFF);
@@ -192,7 +190,7 @@ class _RegistrationPageState extends State<RegistrationPage>
       );
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/dashboard');
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainBottomNavShell()));
     } catch (e) {
       if (!mounted) return;
       _snack('Gagal menyimpan: $e');
