@@ -87,11 +87,6 @@ class SupabaseRoomRepository implements RoomRepository {
       'kos_id': kosId,
       if (createdBy != null) 'created_by': createdBy,
     };
-
-    // DEBUG create room payload
-    // ignore: avoid_print
-    print('[SupabaseRoomRepository] createRoom payload=$payload');
-
     await _client.from('rooms').insert(payload);
   }
 
@@ -123,12 +118,6 @@ class SupabaseRoomRepository implements RoomRepository {
     required String roomId,
     required List<String> photoObjectPaths,
   }) async {
-    // DEBUG update photos to DB
-    // ignore: avoid_print
-    print('[SupabaseRoomRepository] updateRoomPhotos roomId=$roomId count=${photoObjectPaths.length}');
-    // ignore: avoid_print
-    print('[SupabaseRoomRepository] photoObjectPaths=${photoObjectPaths.join(', ')}');
-
     await _client
         .from('rooms')
         .update({'photo_asset_paths': photoObjectPaths})
@@ -184,7 +173,7 @@ class SupabaseRoomRepository implements RoomRepository {
 
     final signed = await Future.wait(
       room.photoAssetPaths.map(
-        (objectName) => B2SignedUrlService().getSignedDownloadUrl(
+        (objectName) => B2SignedUrlService.instance.getSignedDownloadUrl(
           bucketName: B2Config.bucketRoomPhoto,
           objectName: objectName,
           validFor: validFor,

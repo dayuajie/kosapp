@@ -1,5 +1,6 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'kos_repository.dart';
 
 
 
@@ -9,9 +10,6 @@ class SupabaseKosRepository {
   SupabaseKosRepository({SupabaseClient? client})
       : _client = client ?? Supabase.instance.client;
   String? get currentUserId => _client.auth.currentUser?.id;
-  // ===========================================================================
-  // REGION: HELPERS SESSION (KOS ID)
-  // ===========================================================================
   String? get currentKosId =>
       _client.auth.currentUser?.userMetadata?['kos_id']?.toString();
 
@@ -54,4 +52,9 @@ class SupabaseKosRepository {
 
     return res['id'].toString();
   }
+  Future<void> switchActiveKos(String kosId) async {
+  await Supabase.instance.client.auth.updateUser(
+    UserAttributes(data: {'kos_id': kosId}),
+  );
+}
 }

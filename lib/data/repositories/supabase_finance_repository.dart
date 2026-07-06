@@ -21,6 +21,7 @@ extension TransactionTypeX on TransactionType {
 class TransactionEntity {
   final String id;
   final String kosId;
+  final String roomId;
   final DateTime date;
   final String description;
   final double amount;
@@ -31,6 +32,7 @@ class TransactionEntity {
   const TransactionEntity({
     required this.id,
     required this.kosId,
+    this.roomId = '',
     required this.date,
     required this.description,
     required this.amount,

@@ -38,16 +38,6 @@ class RoomPhotoRepository {
       targetWidth: 1600,
     );
 
-    // DEBUG: pastikan nama object dan ukuran hasil kompres sebelum upload.
-    // ignore: avoid_print
-    print('[RoomPhotoRepository] uploadRoomPhoto roomId=$roomId');
-    // ignore: avoid_print
-    print('[RoomPhotoRepository] objectName=$objectName');
-    // ignore: avoid_print
-    print('[RoomPhotoRepository] bucket=${B2Config.bucketRoomPhoto}');
-    // ignore: avoid_print
-    print('[RoomPhotoRepository] compressedExists=${await compressed.exists()}');
-
     await _service.uploadFile(
       file: compressed,
       bucketName: B2Config.bucketRoomPhoto,
